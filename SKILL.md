@@ -64,7 +64,8 @@ When the user wants to create a strategy:
 4. Create with `alpaca_create_strategy`
 5. **Always suggest backtesting first** with `alpaca_backtest`
 6. Review results and iterate on the strategy
-7. Only then suggest activating via monitoring
+7. **Ask if the user wants to paper-trade the strategy first.** If yes, ensure the account is in paper mode (`alpaca_configure` with `mode: "paper"`), activate the strategy via monitoring, and let it run for a trial period. Review paper results with `alpaca_review_session` before switching to live.
+8. Only suggest going live after paper trading validates the strategy
 
 ### 🔔 Monitoring & Alerts
 

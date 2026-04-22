@@ -392,101 +392,46 @@ This agent can build a **visual dashboard** for users to monitor their portfolio
 
 ### Dashboard Template (Alpaca US Stock)
 
-**When the user wants a dashboard, create ALL of the following widgets in this order:**
+When the user wants a dashboard, create these widgets focused on AGENT activity (not broker info — user can see positions/quotes in Alpaca app):
 
-```
-Widget 1: KPI Card — Portfolio Value
-  dashboard_add_widget(
-    module_id=MODULE_ID,
-    widget_type="kpi_card",
-    title="Portfolio Value",
-    config={"prefix": "$", "trend": "up", "subtitle": "+X.X% today"},
-    data=[EQUITY_VALUE]    ← from alpaca_get_account
-  )
+Widget 1: strategy_list — "Active Strategies"
+  Show all running strategies with status (Running/Paused), description, uptime, P&L
 
-Widget 2: KPI Card — Today's P&L
-  dashboard_add_widget(
-    module_id=MODULE_ID,
-    widget_type="kpi_card",
-    title="Today's P&L",
-    config={"prefix": "$", "trend": "up/down"},
-    data=[DAILY_PNL]    ← from alpaca_get_account
-  )
+Widget 2: kpi_card — "Trades Executed Today"
+  Count of today's auto-executed trades, config: {tag: "AUTO", tag_color: "green", subtitle: "X auto / Y manual"}
 
-Widget 3: KPI Card — Buying Power
-  dashboard_add_widget(
-    module_id=MODULE_ID,
-    widget_type="kpi_card",
-    title="Buying Power",
-    config={"prefix": "$"},
-    data=[BUYING_POWER]    ← from alpaca_get_account
-  )
+Widget 3: kpi_card — "Strategy P&L (30d)"
+  Total P&L with per-strategy breakdown in subtitle
 
-Widget 4: Line Chart — Equity Curve (30d)
-  dashboard_add_widget(
-    module_id=MODULE_ID,
-    widget_type="line_chart",
-    title="Equity Curve (30d)",
-    config={"labels": [DATE_LABELS], "color": "#22c55e", "dataset_label": "Equity"},
-    data=[EQUITY_SNAPSHOTS]    ← from position snapshots or alpaca_get_performance
-  )
+Widget 4: kpi_card — "Guardrail Status"
+  "ALL CLEAR" or warning, subtitle shows daily loss / max, trades / max, largest position / max
 
-Widget 5: Table — Open Positions
-  dashboard_add_widget(
-    module_id=MODULE_ID,
-    widget_type="table",
-    title="Open Positions",
-    data=[
-      {"Symbol": "AAPL", "Qty": 50, "Avg Cost": "$178.20", "Current": "$182.50", "P&L": "+$215", "P&L%": "+2.4%"},
-      ...
-    ]    ← from alpaca_get_positions
-  )
+Widget 5: activity_log — "Agent Execution Log"
+  Each trade with: time, action (BUY/SELL), symbol, qty, price, strategy name, and AI REASONING
+  The reasoning is the MOST IMPORTANT part — explain WHY the agent made each decision
+  Example reasoning: "10-day SMA ($176.80) crossed above 30-day SMA ($175.50). Volume 1.4x avg. RSI 55. Entry with 2% stop-loss."
 
-Widget 6: Table — Recent Trades
-  dashboard_add_widget(
-    module_id=MODULE_ID,
-    widget_type="table",
-    title="Recent Trades (7d)",
-    data=[
-      {"Time": "04/21 09:35", "Action": "BUY", "Symbol": "AAPL", "Qty": 10, "Price": "$178.20", "Strategy": "SMA Cross"},
-      ...
-    ]    ← from alpaca_get_trade_journal
-  )
+Widget 6: line_chart — "Strategy Cumulative P&L"
+  Performance curve over time, green color
 
-Widget 7: Stat Row — Key Metrics
-  dashboard_add_widget(
-    module_id=MODULE_ID,
-    widget_type="stat_row",
-    title="Performance Metrics",
-    data=[
-      {"label": "Win Rate", "value": "62%"},
-      {"label": "Sharpe", "value": "1.85"},
-      {"label": "Max DD", "value": "-8.2%"},
-      {"label": "Profit Factor", "value": "2.1"}
-    ]    ← from alpaca_get_performance
-  )
+Widget 7: stat_row — "Automation Performance"
+  Auto trades (30d), win rate, avg reasoning time, guardrail triggers, user overrides
 
-Widget 8: Pie Chart — Sector Allocation
-  dashboard_add_widget(
-    module_id=MODULE_ID,
-    widget_type="pie_chart",
-    title="Sector Allocation",
-    config={"labels": ["Tech", "Finance", "Healthcare", "Energy", "Cash"]},
-    data=[40, 25, 15, 10, 10]    ← computed from alpaca_get_positions
-  )
-```
+Widget 8: table — "Full Execution History"
+  Complete log with columns: Time, Action, Symbol, Qty, Price, Strategy, Logic
+  Logic column renders as AI Reasoning block with blue left-border
 
 ### Dashboard Data Refresh
 
-Every time the user opens a session, refresh dashboard data:
+Every time the user opens a session, refresh the agent-specific dashboard widgets:
 
 ```
 1. Call dashboard_list_widgets(module_id=MODULE_ID) → get widget IDs
-2. Fetch fresh data from Alpaca (account, positions, trades)
+2. Fetch fresh data: strategy statuses, execution logs with AI reasoning, guardrail states, cumulative P&L
 3. Call dashboard_update_widget(widget_id=..., data=[fresh_data]) for each widget
 ```
 
-For autonomous strategies, also update the dashboard in the daily auto-trading summary.
+For autonomous strategies, also update the dashboard in the daily auto-trading summary — especially the Agent Execution Log and Guardrail Status widgets.
 
 ### Rules
 

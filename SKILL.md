@@ -372,43 +372,113 @@ Key concepts to explain clearly when users encounter them:
 
 ## Dashboard Integration
 
-**You have a dashboard skill installed.** DO NOT search for dashboard tools or skills — they are already available to you.
+**You can build a visual dashboard** for users to monitor their portfolio from any browser/phone.
 
-- **Skill repo**: https://github.com/yshi0730/claw-dashboard-skill
-- **Skill name in manifest.json**: `claw-dashboard-skill@dashboard`
-- **DO NOT** search for other dashboard solutions, install npm packages, or write HTML yourself
-- **DO** use the tools listed below directly — they are real, callable MCP tools, already loaded:
-
-- `dashboard_setup` — Install hub + cloudflared tunnel, register device, start services
-- `dashboard_status` — Check if hub is running
-- `dashboard_restart` — Restart hub and tunnel
-- `dashboard_get_url` — Get the public URL
-- `dashboard_register_module` — Register your page on the dashboard
-- `dashboard_add_widget` — Add a widget (kpi_card, line_chart, bar_chart, pie_chart, table, activity_log, strategy_list, stat_row, text)
-- `dashboard_update_widget` — Update widget data
-- `dashboard_remove_widget` — Remove a widget
-- `dashboard_list_widgets` — List existing widgets
-- `dashboard_push_data` — Write to shared key-value store
-- `dashboard_get_data` — Read from shared key-value store
-
-**Use these tools directly. They are available to you right now.**
-
-This agent can build a **visual dashboard** for users to monitor their portfolio from any browser/phone.
+- **DO NOT** search for dashboard tools, install random npm packages, or write HTML from scratch
+- **DO** follow the exact steps below — the dashboard framework is at https://github.com/yshi0730/claw-dashboard-skill
 
 ### When to Offer
 
 - **Wake-up / self-introduction**: Always mention dashboard as a capability
 - **After initial setup completes**: Proactively ask "要不要搭建可视化面板？"
 - **If user says no**: Respect it. Don't ask again unless they bring it up.
-- **If user says yes**: Execute the template below immediately.
+- **If user says yes**: Execute the setup flow below.
 
-### Setup Flow
+### Setup Flow (Step by Step)
 
-1. Call `dashboard_setup` — installs hub + tunnel, returns a stable public URL
-2. Tell user the URL (e.g. `https://device-xxx.clawln.app`), suggest bookmarking
-3. Call `dashboard_register_module(agent_id="alpaca-us-stock-trader", name="US Stock Portfolio", icon="📈")`
-4. Execute the **Dashboard Template** below — create all widgets in order
-5. Tell user: "Dashboard 已搭建好，包含 8 个组件，打开链接即可查看。"
+**Step 1: Clone the dashboard skill repo**
+```bash
+git clone https://github.com/yshi0730/claw-dashboard-skill.git ~/.claw/dashboard-skill
+```
+
+**Step 2: Install dependencies**
+```bash
+pip install fastapi uvicorn jinja2 httpx
+```
+
+**Step 3: Copy hub-app to ~/.claw/hub/**
+```bash
+mkdir -p ~/.claw/hub
+cp -R ~/.claw/dashboard-skill/hub-app/* ~/.claw/hub/
+```
+
+**Step 4: Initialize the shared database**
+```bash
+python3 -c "
+import sqlite3, os
+os.makedirs(os.path.expanduser('~/.claw/shared'), exist_ok=True)
+db = sqlite3.connect(os.path.expanduser('~/.claw/shared/shared.db'))
+db.executescript('''
+    CREATE TABLE IF NOT EXISTS dashboard_modules (
+        id TEXT PRIMARY KEY, agent_id TEXT NOT NULL, name TEXT NOT NULL,
+        icon TEXT DEFAULT \"📊\", config TEXT DEFAULT \"{}\",
+        created_at TEXT DEFAULT (datetime(\"now\")), updated_at TEXT DEFAULT (datetime(\"now\"))
+    );
+    CREATE TABLE IF NOT EXISTS dashboard_widgets (
+        id TEXT PRIMARY KEY, module_id TEXT NOT NULL, widget_type TEXT NOT NULL,
+        title TEXT NOT NULL, config TEXT DEFAULT \"{}\", data TEXT DEFAULT \"[]\",
+        position INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT (datetime(\"now\")), updated_at TEXT DEFAULT (datetime(\"now\"))
+    );
+    CREATE TABLE IF NOT EXISTS dashboard_kv (
+        namespace TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL,
+        updated_at TEXT DEFAULT (datetime(\"now\")), PRIMARY KEY (namespace, key)
+    );
+''')
+db.commit()
+print('Database initialized')
+"
+```
+
+**Step 5: Read device serial number and register tunnel**
+```bash
+# Read serial from BIOS
+SERIAL=$(cat /sys/class/dmi/id/product_serial 2>/dev/null || echo "UNKNOWN")
+
+# Register with tunnel API
+curl -s -X POST https://api.clawln.app/devices/register \
+  -H "Content-Type: application/json" \
+  -d "{\"serial\": \"$SERIAL\"}" > ~/.claw/config/tunnel.json
+
+# Show the public URL
+python3 -c "import json; print(json.load(open(os.path.expanduser('~/.claw/config/tunnel.json')))['public_url'])"
+```
+
+**Step 6: Start hub server**
+```bash
+cd ~/.claw/hub && nohup python3 -m uvicorn app:app --host 0.0.0.0 --port 3000 > ~/.claw/hub.log 2>&1 &
+```
+
+**Step 7: Start cloudflared tunnel**
+```bash
+TUNNEL_TOKEN=$(python3 -c "import json,os; print(json.load(open(os.path.expanduser('~/.claw/config/tunnel.json')))['tunnel_token'])")
+nohup cloudflared tunnel run --token "$TUNNEL_TOKEN" > ~/.claw/tunnel.log 2>&1 &
+```
+
+**Step 8: Register this agent's module and add widgets**
+```python
+import sqlite3, json, uuid, os
+
+db = sqlite3.connect(os.path.expanduser('~/.claw/shared/shared.db'))
+
+# Register module
+module_id = str(uuid.uuid4())[:8]
+db.execute("INSERT OR IGNORE INTO dashboard_modules (id, agent_id, name, icon) VALUES (?, ?, ?, ?)",
+    (module_id, "alpaca-us-stock-trader", "美股交易面板", "📈"))
+
+# Add widgets — see Dashboard Template below for what to create
+# Example:
+db.execute("INSERT INTO dashboard_widgets (id, module_id, widget_type, title, config, data, position) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    (str(uuid.uuid4())[:8], module_id, "strategy_list", "Active Strategies",
+     json.dumps({}), json.dumps([{"name": "...", "description": "...", "status": "active"}]), 0))
+
+db.commit()
+```
+
+**Step 9: Tell user the URL**
+Read public_url from `~/.claw/config/tunnel.json` and tell the user to open it in their browser.
+
+**If hub or tunnel is already running** (subsequent sessions): skip Steps 1-7, go straight to Step 8 to update widget data.
 
 ### Dashboard Template (Alpaca US Stock)
 

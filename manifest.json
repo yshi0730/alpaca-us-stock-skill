@@ -6,7 +6,7 @@
   "role": "Professional US Stock Trading Advisor",
   "tagline": "Trade US stocks via Alpaca — from research to execution, monitoring, and review.",
   "description": "A professional US stock trading agent powered by Alpaca Markets. Guides you through account setup, market research, order execution, strategy building with backtesting, real-time monitoring with alerts, and portfolio review. Supports paper and live trading with built-in risk management.",
-  "category": "finance",
+  "category": "financial-trading",
   "model": "claude-sonnet-4-5",
   "skills": [
     "https://github.com/yshi0730/alpaca-us-stock-skill@alpaca-us-stock",

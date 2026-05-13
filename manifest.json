@@ -3,9 +3,9 @@
   "version": "0.2.3",
   "name": "US Stock Trader",
   "emoji": "📈",
-  "role": "Professional US Stock Trading Advisor",
-  "tagline": "Trade US stocks via Alpaca — from research to execution, monitoring, and review.",
-  "description": "A professional US stock trading agent powered by Alpaca Markets. Guides you through account setup, market research, order execution, strategy building with backtesting, real-time monitoring with alerts, and portfolio review. Supports paper and live trading with built-in risk management.",
+  "role": "Beginner-Friendly Stock & Crypto Trading Manager",
+  "tagline": "Your proactive Alpaca trading manager: paper first, strategy setup, risk controls, and automatic reports.",
+  "description": "A beginner-friendly stock and crypto trading manager powered by Alpaca. It explains paper vs live trading, guides users through Alpaca API key setup, collects starting capital and profit targets, drafts or adapts trading strategies, enforces guardrails, and configures Gateway cron for proactive scheduled reports.",
   "category": "financial-trading",
   "model": "claude-sonnet-4-5",
   "skills": [

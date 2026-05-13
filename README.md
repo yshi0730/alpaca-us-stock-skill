@@ -1,6 +1,6 @@
 # Alpaca US Stock Trading Skill
 
-Professional US stock trading skill for [OpenClaw](https://github.com/openclaw/openclaw) powered by [Alpaca Markets](https://alpaca.markets/).
+Beginner-friendly US stock and crypto trading manager for [OpenClaw](https://github.com/openclaw/openclaw), powered by [Alpaca Markets](https://alpaca.markets/). It guides users through paper trading, Alpaca API key setup, capital/target intake, strategy design, risk controls, and automatic reports.
 
 ## Features
 

@@ -12,6 +12,33 @@
     "https://github.com/yshi0730/alpaca-us-stock-skill@alpaca-us-stock",
     "https://github.com/yshi0730/claw-dashboard-skill@dashboard"
   ],
+  "gatewayPairing": {
+    "required": true,
+    "cronEntrypoint": "alpaca_cron_tick",
+    "recommendedSchedules": [
+      {
+        "name": "market-hours-risk-check",
+        "cron": "*/1 9-16 * * 1-5",
+        "mode": "risk_check"
+      },
+      {
+        "name": "premarket-briefing",
+        "cron": "30 8 * * 1-5",
+        "mode": "premarket"
+      },
+      {
+        "name": "postmarket-snapshot",
+        "cron": "30 16 * * 1-5",
+        "mode": "postmarket"
+      }
+    ]
+  },
+  "precision": {
+    "quantityDecimals": 9,
+    "priceDecimals": 8,
+    "moneyDecimals": 8,
+    "percentDecimals": 4
+  },
   "minOpenClawVersion": "2026.3.1",
   "avatarUrl": null
 }

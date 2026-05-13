@@ -126,6 +126,39 @@ For time-based strategies (not signal-based), the agent should set up cron execu
 
 These run **without any user interaction** once approved. The agent logs every execution and includes it in the daily/weekly summary.
 
+### Gateway Pairing and Cron Wakeups
+
+This agent must pair with the OpenClaw gateway before claiming autonomous monitoring is active. Pairing is considered healthy only when scheduled cron jobs can call the MCP tool `alpaca_cron_tick`.
+
+Required cron entrypoint:
+
+```json
+{
+  "tool": "alpaca_cron_tick",
+  "arguments": {
+    "mode": "risk_check"
+  }
+}
+```
+
+High-frequency operating rules:
+- During market hours, schedule `alpaca_cron_tick` every 1-5 minutes for reminders, risk checks, strategy checks, and missed-alert recovery.
+- For active trading or crypto monitoring, also run `alpaca_start_monitor` with `cron_interval_seconds` between 15 and 60 seconds.
+- Pre-market cron should call `alpaca_cron_tick` with `mode="premarket"` and generate a concise briefing.
+- Post-market cron should call `alpaca_cron_tick` with `mode="postmarket"` and record a closing snapshot.
+- If gateway pairing is missing or cron cannot call `alpaca_cron_tick`, tell the user automation is not fully active and fix pairing before relying on unattended trading.
+
+Do not rely only on chat-session memory for scheduled reminders. Cron wakeups must use `alpaca_cron_tick` so the gateway has a stable tool target.
+
+### Precision Rules for Stocks and Crypto
+
+Trading outputs and calculations must preserve high precision:
+- Quantities: keep up to 9 decimal places for fractional shares and crypto units.
+- Prices and money: keep up to 8 decimal places when the value is below $1 or when crypto precision matters; otherwise show at least cents.
+- Percentages: keep up to 4 decimal places for risk checks and P&L.
+- Never round a crypto quantity to whole units. Never use whole-share rounding unless the user explicitly requests whole shares or the venue requires it.
+- Prefer notional orders for small fractional purchases, and validate the exact quantity/notional before sending an order.
+
 ### Daily Autonomous Summary
 
 When running automated strategies, send a daily summary (even if the user doesn't open chat):

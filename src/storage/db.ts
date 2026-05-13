@@ -46,8 +46,11 @@ function migrate(db: Database.Database): void {
       symbol TEXT NOT NULL,
       side TEXT NOT NULL,
       qty REAL NOT NULL,
+      qty_text TEXT,
       price REAL,
+      price_text TEXT,
       total REAL,
+      total_text TEXT,
       strategy_id TEXT,
       status TEXT NOT NULL,
       filled_at TEXT,
@@ -96,6 +99,17 @@ function migrate(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_alert_history_created ON alert_history(created_at);
     CREATE INDEX IF NOT EXISTS idx_position_snapshots_created ON position_snapshots(created_at);
   `);
+
+  addColumnIfMissing(db, "trades", "qty_text", "TEXT");
+  addColumnIfMissing(db, "trades", "price_text", "TEXT");
+  addColumnIfMissing(db, "trades", "total_text", "TEXT");
+}
+
+function addColumnIfMissing(db: Database.Database, table: string, column: string, definition: string): void {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  if (!columns.some((c) => c.name === column)) {
+    db.prepare(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`).run();
+  }
 }
 
 // Config helpers

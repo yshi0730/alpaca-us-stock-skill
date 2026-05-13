@@ -1,32 +1,59 @@
 import { z } from "zod";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getClient, formatMode } from "../utils.js";
+import { formatMoney, formatPct, formatQty, normalizeDecimalString, toFiniteNumber } from "../precision.js";
 import { recordTrade } from "../storage/queries.js";
 import type { OrderSide, OrderType, TimeInForce } from "../alpaca/types.js";
 
 export function registerTradingTools(server: McpServer): void {
   server.tool(
     "alpaca_place_order",
-    "Place a stock order (buy or sell). IMPORTANT: Always confirm with user before placing orders, especially in live mode.",
+    "Place a stock or crypto order. Decimal quantities are preserved for fractional shares and crypto. IMPORTANT: Always confirm with user before manual live orders.",
     {
-      symbol: z.string().describe("Stock ticker symbol"),
+      symbol: z.string().describe("Ticker symbol, e.g. AAPL or BTC/USD if supported by the account"),
       side: z.enum(["buy", "sell"]).describe("Order side"),
-      qty: z.string().optional().describe("Number of shares (use this OR notional, not both)"),
-      notional: z.string().optional().describe("Dollar amount to buy/sell (use this OR qty)"),
+      qty: z.string().optional().describe("Share/unit quantity, supports up to 9 decimal places. Use this OR notional, not both."),
+      notional: z.string().optional().describe("Dollar notional amount, supports decimal cents and sub-cent crypto routing where Alpaca allows it. Use this OR qty."),
       type: z.enum(["market", "limit", "stop", "stop_limit", "trailing_stop"]).default("market").describe("Order type"),
       time_in_force: z.enum(["day", "gtc", "opg", "cls", "ioc", "fok"]).default("day").describe("Time in force"),
-      limit_price: z.string().optional().describe("Limit price (required for limit/stop_limit orders)"),
-      stop_price: z.string().optional().describe("Stop price (required for stop/stop_limit orders)"),
-      trail_percent: z.string().optional().describe("Trail percentage for trailing stop orders"),
+      limit_price: z.string().optional().describe("Limit price, supports up to 8 decimal places"),
+      stop_price: z.string().optional().describe("Stop price, supports up to 8 decimal places"),
+      trail_percent: z.string().optional().describe("Trail percentage, supports decimal values"),
       extended_hours: z.boolean().optional().default(false).describe("Allow extended hours trading"),
     },
     async ({ symbol, side, qty, notional, type, time_in_force, limit_price, stop_price, trail_percent, extended_hours }) => {
       const client = getClient();
       const sym = symbol.toUpperCase();
 
-      if (!qty && !notional) {
+      let normalizedQty: string | undefined;
+      let normalizedNotional: string | undefined;
+      let normalizedLimitPrice: string | undefined;
+      let normalizedStopPrice: string | undefined;
+      let normalizedTrailPercent: string | undefined;
+
+      try {
+        normalizedQty = qty ? normalizeDecimalString(qty, 9) : undefined;
+        normalizedNotional = notional ? normalizeDecimalString(notional, 8) : undefined;
+        normalizedLimitPrice = limit_price ? normalizeDecimalString(limit_price, 8) : undefined;
+        normalizedStopPrice = stop_price ? normalizeDecimalString(stop_price, 8) : undefined;
+        normalizedTrailPercent = trail_percent ? normalizeDecimalString(trail_percent, 6) : undefined;
+      } catch (err) {
         return {
-          content: [{ type: "text", text: "❌ Must specify either `qty` (shares) or `notional` (dollar amount)." }],
+          content: [{ type: "text", text: `Invalid numeric input: ${err instanceof Error ? err.message : String(err)}` }],
+          isError: true,
+        };
+      }
+
+      if (!normalizedQty && !normalizedNotional) {
+        return {
+          content: [{ type: "text", text: "Must specify either qty or notional." }],
+          isError: true,
+        };
+      }
+
+      if (normalizedQty && normalizedNotional) {
+        return {
+          content: [{ type: "text", text: "Specify only one of qty or notional, not both." }],
           isError: true,
         };
       }
@@ -35,22 +62,21 @@ export function registerTradingTools(server: McpServer): void {
         const order = await client.placeOrder({
           symbol: sym,
           side: side as OrderSide,
-          qty,
-          notional,
+          qty: normalizedQty,
+          notional: normalizedNotional,
           type: type as OrderType,
           time_in_force: time_in_force as TimeInForce,
-          limit_price,
-          stop_price,
-          trail_percent,
+          limit_price: normalizedLimitPrice,
+          stop_price: normalizedStopPrice,
+          trail_percent: normalizedTrailPercent,
           extended_hours,
         });
 
-        // Record in local DB
         recordTrade({
           order_id: order.id,
           symbol: sym,
           side,
-          qty: parseFloat(order.qty),
+          qty: toFiniteNumber(order.qty || normalizedQty),
           status: order.status,
         });
 
@@ -59,20 +85,20 @@ export function registerTradingTools(server: McpServer): void {
           `| **Symbol** | ${sym} |`,
           `| **Side** | ${side.toUpperCase()} |`,
           `| **Type** | ${type.toUpperCase()} |`,
-          `| **Qty** | ${qty || `$${notional}`} |`,
+          `| **Qty / Notional** | ${normalizedQty ? formatQty(normalizedQty) : formatMoney(normalizedNotional!)} |`,
           `| **Time in Force** | ${time_in_force.toUpperCase()} |`,
           `| **Status** | ${order.status} |`,
         ];
 
-        if (limit_price) details.push(`| **Limit Price** | $${limit_price} |`);
-        if (stop_price) details.push(`| **Stop Price** | $${stop_price} |`);
-        if (trail_percent) details.push(`| **Trail %** | ${trail_percent}% |`);
+        if (normalizedLimitPrice) details.push(`| **Limit Price** | ${formatMoney(normalizedLimitPrice)} |`);
+        if (normalizedStopPrice) details.push(`| **Stop Price** | ${formatMoney(normalizedStopPrice)} |`);
+        if (normalizedTrailPercent) details.push(`| **Trail %** | ${formatQty(normalizedTrailPercent)}% |`);
 
         return {
           content: [
             {
               type: "text",
-              text: `## ✅ Order Placed ${formatMode()}\n\n| Field | Value |\n|-------|-------|\n${details.join("\n")}`,
+              text: `## Order Placed ${formatMode()}\n\n| Field | Value |\n|-------|-------|\n${details.join("\n")}`,
             },
           ],
         };
@@ -81,7 +107,7 @@ export function registerTradingTools(server: McpServer): void {
           content: [
             {
               type: "text",
-              text: `## ❌ Order Failed\n\n**Error**: ${err instanceof Error ? err.message : String(err)}\n\n**Attempted**: ${side.toUpperCase()} ${qty || `$${notional}`} ${sym} (${type})`,
+              text: `## Order Failed\n\n**Error**: ${err instanceof Error ? err.message : String(err)}\n\n**Attempted**: ${side.toUpperCase()} ${normalizedQty || normalizedNotional} ${sym} (${type})`,
             },
           ],
           isError: true,
@@ -106,27 +132,19 @@ export function registerTradingTools(server: McpServer): void {
         return { content: [{ type: "text", text: "No orders found." }] };
       }
 
-      let table = `## 📋 Orders (${orders.length})\n\n`;
+      let table = `## Orders (${orders.length})\n\n`;
       table += "| Time | Symbol | Side | Type | Qty | Price | Status |\n";
       table += "|------|--------|------|------|-----|-------|--------|\n";
 
       for (const o of orders) {
-        const time = o.submitted_at?.split("T")[0] || "—";
+        const time = o.submitted_at?.split("T")[0] || "-";
         const price = o.filled_avg_price
-          ? `$${parseFloat(o.filled_avg_price).toFixed(2)}`
+          ? formatMoney(o.filled_avg_price)
           : o.limit_price
-            ? `lmt $${o.limit_price}`
+            ? `lmt ${formatMoney(o.limit_price)}`
             : "market";
-        const statusIcon =
-          o.status === "filled"
-            ? "✅"
-            : o.status === "canceled"
-              ? "❌"
-              : o.status === "new" || o.status === "accepted"
-                ? "⏳"
-                : "⚪";
 
-        table += `| ${time} | **${o.symbol}** | ${o.side.toUpperCase()} | ${o.type} | ${o.qty} | ${price} | ${statusIcon} ${o.status} |\n`;
+        table += `| ${time} | **${o.symbol}** | ${o.side.toUpperCase()} | ${o.type} | ${formatQty(o.qty)} | ${price} | ${o.status} |\n`;
       }
 
       return { content: [{ type: "text", text: table }] };
@@ -141,10 +159,10 @@ export function registerTradingTools(server: McpServer): void {
       const client = getClient();
       try {
         await client.cancelOrder(order_id);
-        return { content: [{ type: "text", text: `✅ Order \`${order_id}\` has been canceled.` }] };
+        return { content: [{ type: "text", text: `Order \`${order_id}\` has been canceled.` }] };
       } catch (err) {
         return {
-          content: [{ type: "text", text: `❌ Failed to cancel order: ${err instanceof Error ? err.message : String(err)}` }],
+          content: [{ type: "text", text: `Failed to cancel order: ${err instanceof Error ? err.message : String(err)}` }],
           isError: true,
         };
       }
@@ -158,48 +176,46 @@ export function registerTradingTools(server: McpServer): void {
     async () => {
       const client = getClient();
       await client.cancelAllOrders();
-      return { content: [{ type: "text", text: "✅ All open orders have been canceled." }] };
+      return { content: [{ type: "text", text: "All open orders have been canceled." }] };
     }
   );
 
   server.tool(
     "alpaca_get_positions",
-    "Get all current stock positions with P&L",
+    "Get all current stock and crypto positions with high-precision quantities and P&L",
     {},
     async () => {
       const client = getClient();
       const positions = await client.getPositions();
 
       if (positions.length === 0) {
-        return { content: [{ type: "text", text: "📭 No open positions." }] };
+        return { content: [{ type: "text", text: "No open positions." }] };
       }
 
       let totalValue = 0;
       let totalPnl = 0;
 
-      let table = "## 💼 Current Positions\n\n";
+      let table = "## Current Positions\n\n";
       table += "| Symbol | Qty | Avg Cost | Current | Mkt Value | P&L | P&L% | Today |\n";
       table += "|--------|-----|----------|---------|-----------|-----|------|-------|\n";
 
       for (const p of positions) {
-        const qty = parseFloat(p.qty);
-        const avgCost = parseFloat(p.avg_entry_price);
-        const current = parseFloat(p.current_price);
-        const mktValue = parseFloat(p.market_value);
-        const pnl = parseFloat(p.unrealized_pl);
-        const pnlPct = parseFloat(p.unrealized_plpc) * 100;
-        const today = parseFloat(p.change_today) * 100;
-        const icon = pnl >= 0 ? "🟢" : "🔴";
+        const avgCost = toFiniteNumber(p.avg_entry_price);
+        const current = toFiniteNumber(p.current_price);
+        const mktValue = toFiniteNumber(p.market_value);
+        const pnl = toFiniteNumber(p.unrealized_pl);
+        const pnlPct = toFiniteNumber(p.unrealized_plpc) * 100;
+        const today = toFiniteNumber(p.change_today) * 100;
+        const icon = pnl >= 0 ? "+" : "";
 
         totalValue += mktValue;
         totalPnl += pnl;
 
-        table += `| **${p.symbol}** | ${qty} | $${avgCost.toFixed(2)} | $${current.toFixed(2)} | $${mktValue.toLocaleString(undefined, { minimumFractionDigits: 2 })} | ${icon} $${pnl.toFixed(2)} | ${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(2)}% | ${today >= 0 ? "+" : ""}${today.toFixed(2)}% |\n`;
+        table += `| **${p.symbol}** | ${formatQty(p.qty)} | ${formatMoney(avgCost)} | ${formatMoney(current)} | ${formatMoney(mktValue)} | ${icon}${formatMoney(pnl)} | ${formatPct(pnlPct)} | ${formatPct(today)} |\n`;
       }
 
-      const totalIcon = totalPnl >= 0 ? "🟢" : "🔴";
-      table += `\n**Total Market Value**: $${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
-      table += `\n**Total Unrealized P&L**: ${totalIcon} $${totalPnl.toFixed(2)}`;
+      table += `\n**Total Market Value**: ${formatMoney(totalValue)}`;
+      table += `\n**Total Unrealized P&L**: ${totalPnl >= 0 ? "+" : ""}${formatMoney(totalPnl)}`;
 
       return { content: [{ type: "text", text: table }] };
     }
@@ -207,34 +223,45 @@ export function registerTradingTools(server: McpServer): void {
 
   server.tool(
     "alpaca_close_position",
-    "Close (sell) a specific stock position",
+    "Close a specific stock or crypto position",
     {
-      symbol: z.string().describe("Stock symbol to close"),
-      qty: z.string().optional().describe("Number of shares to close (omit to close entire position)"),
+      symbol: z.string().describe("Symbol to close"),
+      qty: z.string().optional().describe("Number of shares/units to close, supports up to 9 decimal places. Omit to close entire position."),
     },
     async ({ symbol, qty }) => {
       const client = getClient();
       const sym = symbol.toUpperCase();
+
+      let normalizedQty: string | undefined;
       try {
-        const order = await client.closePosition(sym, qty);
+        normalizedQty = qty ? normalizeDecimalString(qty, 9) : undefined;
+      } catch (err) {
+        return {
+          content: [{ type: "text", text: `Invalid quantity: ${err instanceof Error ? err.message : String(err)}` }],
+          isError: true,
+        };
+      }
+
+      try {
+        const order = await client.closePosition(sym, normalizedQty);
         recordTrade({
           order_id: order.id,
           symbol: sym,
           side: "sell",
-          qty: parseFloat(order.qty),
+          qty: toFiniteNumber(order.qty || normalizedQty),
           status: order.status,
         });
         return {
           content: [
             {
               type: "text",
-              text: `✅ Closing position: ${qty || "ALL"} shares of ${sym}\nOrder ID: \`${order.id}\` | Status: ${order.status}`,
+              text: `Closing position: ${normalizedQty ? formatQty(normalizedQty) : "ALL"} units of ${sym}\nOrder ID: \`${order.id}\` | Status: ${order.status}`,
             },
           ],
         };
       } catch (err) {
         return {
-          content: [{ type: "text", text: `❌ Failed to close position: ${err instanceof Error ? err.message : String(err)}` }],
+          content: [{ type: "text", text: `Failed to close position: ${err instanceof Error ? err.message : String(err)}` }],
           isError: true,
         };
       }
@@ -243,12 +270,12 @@ export function registerTradingTools(server: McpServer): void {
 
   server.tool(
     "alpaca_close_all_positions",
-    "Close ALL positions. DANGER: This will liquidate your entire portfolio!",
+    "Close ALL positions. DANGER: This will liquidate the entire portfolio.",
     {},
     async () => {
       const client = getClient();
       await client.closeAllPositions();
-      return { content: [{ type: "text", text: "⚠️ All positions are being closed. Orders have been submitted." }] };
+      return { content: [{ type: "text", text: "All positions are being closed. Orders have been submitted." }] };
     }
   );
 }

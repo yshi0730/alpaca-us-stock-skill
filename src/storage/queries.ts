@@ -1,5 +1,6 @@
 import { v4 as uuid } from "uuid";
 import { getDb } from "./db.js";
+import { normalizeDecimalString, toFiniteNumber } from "../precision.js";
 import type {
   AlertEvent,
   AlertRule,
@@ -76,26 +77,32 @@ export function recordTrade(trade: {
   order_id: string;
   symbol: string;
   side: string;
-  qty: number;
-  price?: number;
-  total?: number;
+  qty: number | string;
+  price?: number | string;
+  total?: number | string;
   strategy_id?: string;
   status: string;
   filled_at?: string;
 }): string {
   const db = getDb();
   const id = uuid();
+  const qtyText = normalizeDecimalString(trade.qty, 9);
+  const priceText = trade.price !== undefined ? normalizeDecimalString(trade.price, 8) : null;
+  const totalText = trade.total !== undefined ? normalizeDecimalString(trade.total, 8) : null;
   db.prepare(
-    `INSERT INTO trades (id, order_id, symbol, side, qty, price, total, strategy_id, status, filled_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO trades (id, order_id, symbol, side, qty, qty_text, price, price_text, total, total_text, strategy_id, status, filled_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     id,
     trade.order_id,
     trade.symbol,
     trade.side,
-    trade.qty,
-    trade.price ?? null,
-    trade.total ?? null,
+    toFiniteNumber(qtyText),
+    qtyText,
+    priceText ? toFiniteNumber(priceText) : null,
+    priceText,
+    totalText ? toFiniteNumber(totalText) : null,
+    totalText,
     trade.strategy_id ?? null,
     trade.status,
     trade.filled_at ?? null

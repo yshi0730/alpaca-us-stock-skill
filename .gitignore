@@ -4,3 +4,4 @@ data/*.db
 data/*.jsonl
 .env
 *.tsbuildinfo
+.tools/

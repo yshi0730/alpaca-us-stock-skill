@@ -3,11 +3,11 @@ import type { AlpacaClient } from "../alpaca/client.js";
 import type {
   Strategy,
   BacktestResult,
-  BacktestMetrics,
   BacktestTrade,
   Bar,
 } from "../alpaca/types.js";
 import { computeMetrics } from "./metrics.js";
+import { formatPct, truncateToStep } from "../precision.js";
 
 interface BacktestParams {
   client: AlpacaClient;
@@ -23,6 +23,8 @@ interface SimPosition {
   qty: number;
   avgPrice: number;
 }
+
+const SIM_QTY_DECIMALS = 6;
 
 export async function runBacktest(params: BacktestParams): Promise<BacktestResult> {
   const { client, strategy, symbols, startDate, endDate, initialCapital } = params;
@@ -97,11 +99,11 @@ export async function runBacktest(params: BacktestParams): Promise<BacktestResul
 
             if (action.sizing === "percent_of_equity" && action.value) {
               const amount = equity * (action.value / 100);
-              qty = Math.floor(amount / price);
+              qty = truncateToStep(amount / price, SIM_QTY_DECIMALS);
             } else if (action.sizing === "notional" && action.value) {
-              qty = Math.floor(action.value / price);
+              qty = truncateToStep(action.value / price, SIM_QTY_DECIMALS);
             } else if (action.sizing === "shares" && action.value) {
-              qty = action.value;
+              qty = truncateToStep(action.value, SIM_QTY_DECIMALS);
             }
 
             // Risk check: max position
@@ -110,7 +112,7 @@ export async function runBacktest(params: BacktestParams): Promise<BacktestResul
               const existingValue = (positions[targetSymbol]?.qty || 0) * price;
               const buyAmount = qty * price;
               if (existingValue + buyAmount > maxAmount) {
-                qty = Math.floor((maxAmount - existingValue) / price);
+                qty = truncateToStep((maxAmount - existingValue) / price, SIM_QTY_DECIMALS);
               }
             }
 
@@ -140,7 +142,7 @@ export async function runBacktest(params: BacktestParams): Promise<BacktestResul
 
             let qty = pos.qty;
             if (action.sizing === "shares" && action.value) {
-              qty = Math.min(action.value, pos.qty);
+              qty = truncateToStep(Math.min(action.value, pos.qty), SIM_QTY_DECIMALS);
             }
 
             cash += qty * price;
@@ -154,7 +156,7 @@ export async function runBacktest(params: BacktestParams): Promise<BacktestResul
               reason: describeConditions(rule.conditions),
             });
 
-            pos.qty -= qty;
+            pos.qty = truncateToStep(pos.qty - qty, SIM_QTY_DECIMALS);
             if (pos.qty <= 0) delete positions[targetSymbol];
           }
         }
@@ -179,7 +181,7 @@ export async function runBacktest(params: BacktestParams): Promise<BacktestResul
             qty: pos.qty,
             price,
             value: pos.qty * price,
-            reason: `Stop loss at ${pnlPct.toFixed(1)}%`,
+            reason: `Stop loss at ${formatPct(pnlPct, 2)}`,
           });
           delete positions[sym];
         } else if (strategy.risk_management.take_profit_pct && pnlPct >= strategy.risk_management.take_profit_pct) {
@@ -191,7 +193,7 @@ export async function runBacktest(params: BacktestParams): Promise<BacktestResul
             qty: pos.qty,
             price,
             value: pos.qty * price,
-            reason: `Take profit at ${pnlPct.toFixed(1)}%`,
+            reason: `Take profit at ${formatPct(pnlPct, 2)}`,
           });
           delete positions[sym];
         }

@@ -13,6 +13,8 @@ Professional US stock trading skill for [OpenClaw](https://github.com/openclaw/o
 | **Monitoring** | WebSocket real-time prices, cron-based position tracking, configurable alert rules |
 | **Backtesting** | Historical strategy testing, Sharpe/drawdown/win-rate metrics, equity curve |
 | **Analytics** | Portfolio performance, trade journal, review sessions with AI-ready data |
+| **Gateway Cron** | Stable `alpaca_cron_tick` entrypoint for OpenClaw/TalentHub scheduled wakeups |
+| **High Precision** | Fractional share and crypto-friendly quantities up to 9 decimals, prices up to 8 decimals |
 
 ## Quick Start
 
@@ -102,6 +104,7 @@ Add to your MCP settings:
 
 ### Monitoring
 - `alpaca_start_monitor` — Start background monitoring daemon
+- `alpaca_cron_tick` — Gateway cron entrypoint for high-frequency reminders, risk checks, and briefings
 - `alpaca_stop_monitor` — Stop monitoring
 - `alpaca_get_monitor_status` — Check status and unread alerts
 - `alpaca_add_alert` — Add price alert rule

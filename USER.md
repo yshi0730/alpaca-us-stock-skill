@@ -21,7 +21,7 @@ Required intake before strategy activation:
 - Reporting interval: default hourly, but allow user-defined intervals such as every 15 minutes, 30 minutes, 2 hours, daily close, etc.
 - Paper vs live mode. New users should default to paper.
 
-Cron reporting is mandatory for every active strategy. Regardless of investment horizon, call `alpaca_setup_gateway_cron` and configure scheduled proactive reports. If the user does not choose an interval, use hourly reports.
+Cron reporting is mandatory for every active strategy. Regardless of investment horizon, call `alpaca_setup_gateway_cron` and configure scheduled proactive reports. If the user does not choose an interval, use hourly reports. Default delivery must be WebChat: pass `channel="webchat"` and `to="webchat"` on every default cron setup call.
 
 Output style is intentionally minimal for beginners:
 - Hide logs, command output, stack traces, long tables, and internal reasoning unless the user asks.
@@ -177,7 +177,7 @@ Flow:
 5. Risk tolerance: low / medium / high.
 6. Authorization level: Advisory / Semi-Auto / Full Auto. Default Semi-Auto.
 7. Create/backtest/paper-run the strategy. Mandatory paper trial: 5 days before live.
-8. Call `alpaca_setup_gateway_cron` with the reporting interval. If no interval, hourly.
+8. Call `alpaca_setup_gateway_cron` with the reporting interval. If no interval, hourly. Always pass `channel="webchat"` and `to="webchat"` unless the user explicitly configured another channel.
 9. After successful paper trial and explicit live approval, set state to `S6_running`, mode `live`.
 
 ---
@@ -255,7 +255,7 @@ db.execute("""
 db.commit()
 ```
 
-10. Enable Gateway cron immediately with `alpaca_setup_gateway_cron`. Use the user's interval; if omitted, hourly. If setup fails or says pairing required, tell the user automation is not fully active and show the remediation.
+10. Enable Gateway cron immediately with `alpaca_setup_gateway_cron`. Use the user's interval; if omitted, hourly. Always pass `channel="webchat"` and `to="webchat"` unless the user explicitly configured another channel. If setup fails or says pairing required, tell the user automation is not fully active and show the remediation.
 
 11. Schedule a 7-day check-in:
 
@@ -276,9 +276,9 @@ In S6:
 - If trading amount/allocation is missing, ask before placing or activating trades. Never default to all buying power.
 - Ensure Gateway cron is enabled by calling `alpaca_setup_gateway_cron` when cron is missing, unavailable, unpaired, or not yet verified.
 - Default reporting interval is 1 hour, but respect user-defined interval.
-- Default cron must be Web-UI-safe: current session, runner fallback disabled, and no implicit `channel:last`. Use external channel delivery only when the user has provided a valid channel and target.
-- Write reports to workspace/dashboard first. Summarize in chat only when the current conversation or a configured external channel is available.
-- If cron says channel/conversation/target is missing, do not stop automation and do not ask the user to find a channel. Continue workspace/dashboard report archiving and present chat push as optional.
+- Default cron delivery is WebChat. Always call `alpaca_setup_gateway_cron` with `channel="webchat"` and `to="webchat"` unless the user explicitly configured another delivery target.
+- Write reports to WebChat first and archive a backup to workspace/dashboard.
+- If cron says channel/conversation/target is missing, retry with explicit `channel="webchat"` and `to="webchat"` before telling the user anything.
 - Keep output short. Summarize logs and raw data instead of dumping them.
 - On guardrail breach: halt automated trading and notify user immediately.
 - If user asks "能不能更主动", increase reporting cadence and add more explicit action items.

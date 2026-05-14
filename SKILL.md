@@ -171,7 +171,7 @@ These run **without any user interaction** once approved. The agent logs every e
 
 This agent must pair with the OpenClaw Gateway before claiming autonomous monitoring is active. OpenClaw cron is a Gateway scheduler created with `openclaw cron add`; it wakes the agent with a message. The cron message should instruct the agent to call the MCP tool `alpaca_cron_tick`.
 
-Cron reports must be workspace-first. A scheduled wakeup may not have a live chat/channel attached, so missing channel is not a user-facing failure. Save the report to workspace/dashboard first, and only announce into chat or an external channel when a valid channel is already available.
+Cron reports must be Web-UI-safe and workspace-first. Do not create default jobs as `--session isolated` with default delivery, because OpenClaw isolated cron defaults to announce delivery and may try `channel:last`, which fails for users who only use the Web UI. Default jobs must use current-session delivery with runner fallback disabled: `--session current --no-deliver`. Save the report to workspace/dashboard first, and only announce into an external channel when a valid `channel` and `to` are already configured.
 
 Required setup tool:
 
@@ -193,6 +193,7 @@ Run alpaca_cron_tick with mode='risk_check'. Check positions, alerts, guardrails
 
 High-frequency operating rules:
 - During market hours, use `alpaca_setup_gateway_cron` to schedule Gateway cron jobs every 1-5 minutes for reminders, risk checks, strategy checks, and missed-alert recovery.
+- For Web UI users, the setup tool must create cron with `--session current --no-deliver`; never rely on implicit `channel:last`.
 - For active trading or crypto monitoring, also run `alpaca_start_monitor` with `cron_interval_seconds` between 15 and 60 seconds.
 - Pre-market cron should wake the agent with a message to call `alpaca_cron_tick` with `mode="premarket"` and generate a concise briefing.
 - Post-market cron should wake the agent with a message to call `alpaca_cron_tick` with `mode="postmarket"` and record a closing snapshot.

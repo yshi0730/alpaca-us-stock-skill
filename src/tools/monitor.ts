@@ -24,6 +24,7 @@ let monitorProcess: ChildProcess | null = null;
 const AGENT_ID = "alpaca-us-stock-trader";
 const CRON_REPORT_INSTRUCTIONS =
   "Save the report to the workspace/dashboard first. If no chat/channel is attached to this cron wakeup, do not fail and do not ask the user for a channel; keep the report archived and only surface urgent action items when a channel is available.";
+const WEB_UI_CRON_DELIVERY_ARGS = ["--session", "current", "--no-deliver"];
 
 function archiveCronReport(mode: string, text: string): string | null {
   try {
@@ -192,7 +193,7 @@ The monitor will stream prices, run strategy/risk checks every ${intervalSeconds
       }
 
       lines.push("");
-      lines.push("Gateway cron: schedule isolated jobs that wake this agent and instruct it to call alpaca_cron_tick every 1-5 minutes during market hours, plus premarket/postmarket jobs for briefings.");
+      lines.push("Gateway cron: schedule current-session jobs with --no-deliver that wake this agent and instruct it to call alpaca_cron_tick, avoiding implicit channel:last delivery.");
 
       const reportText = lines.join("\n");
       const archivePath = archiveCronReport(mode, reportText);
@@ -208,12 +209,12 @@ The monitor will stream prices, run strategy/risk checks every ${intervalSeconds
 
   server.tool(
     "alpaca_setup_gateway_cron",
-    "Create OpenClaw Gateway cron jobs for this trading agent. Use this when cron is unavailable, not paired, missing, or when autonomous trading reminders need to be enabled. Defaults to workspace/dashboard reports and does not require a chat channel.",
+    "Create OpenClaw Gateway cron jobs for this trading agent. Use this when cron is unavailable, not paired, missing, or when autonomous trading reminders need to be enabled. Defaults to current-session Web UI jobs with --no-deliver so OpenClaw does not require channel:last.",
     {
       risk_check_interval_minutes: z.number().int().min(5).max(1440).optional().default(60).describe("How often to wake the agent for proactive reports. Default is hourly."),
       timezone: z.string().optional().default("America/New_York").describe("Timezone for market-hour schedules."),
-      channel: z.string().optional().describe("Optional external delivery channel for summaries, e.g. slack, telegram, discord. Leave empty for default workspace/dashboard reports."),
-      to: z.string().optional().describe("Optional external delivery target, e.g. channel:C123 or a chat id. Requires channel. Leave empty for default workspace/dashboard reports."),
+      channel: z.string().optional().describe("Optional external delivery channel for summaries, e.g. slack, telegram, discord. Leave empty for Web UI/current-session reports."),
+      to: z.string().optional().describe("Optional external delivery target, e.g. channel:C123 or a chat id. Requires channel. Leave empty for Web UI/current-session reports."),
     },
     async ({ risk_check_interval_minutes, timezone, channel, to }) => {
       const jobs = [
@@ -226,8 +227,7 @@ The monitor will stream prices, run strategy/risk checks every ${intervalSeconds
             "Alpaca market-hours risk check",
             "--every",
             `${risk_check_interval_minutes}m`,
-            "--session",
-            "isolated",
+            ...WEB_UI_CRON_DELIVERY_ARGS,
             "--agent",
             AGENT_ID,
             "--message",
@@ -245,8 +245,7 @@ The monitor will stream prices, run strategy/risk checks every ${intervalSeconds
             "30 8 * * 1-5",
             "--tz",
             timezone,
-            "--session",
-            "isolated",
+            ...WEB_UI_CRON_DELIVERY_ARGS,
             "--agent",
             AGENT_ID,
             "--message",
@@ -264,8 +263,7 @@ The monitor will stream prices, run strategy/risk checks every ${intervalSeconds
             "30 16 * * 1-5",
             "--tz",
             timezone,
-            "--session",
-            "isolated",
+            ...WEB_UI_CRON_DELIVERY_ARGS,
             "--agent",
             AGENT_ID,
             "--message",
@@ -274,7 +272,7 @@ The monitor will stream prices, run strategy/risk checks every ${intervalSeconds
         },
       ];
 
-      const deliveryArgs = channel && to ? ["--announce", "--channel", channel, "--to", to] : [];
+      const externalDeliveryArgs = channel && to ? ["--announce", "--best-effort-deliver", "--channel", channel, "--to", to] : [];
       const lines: string[] = ["## Automatic Reports"];
 
       try {
@@ -290,7 +288,7 @@ The monitor will stream prices, run strategy/risk checks every ${intervalSeconds
             content: [
               {
                 type: "text",
-                text: "我需要你确认一下 Gateway pairing。确认后我会自动继续设置每小时汇报。",
+                text: "Gateway pairing is required. Confirm pairing, then I will continue setting up hourly reports.",
               },
             ],
             isError: true,
@@ -303,15 +301,19 @@ The monitor will stream prices, run strategy/risk checks every ${intervalSeconds
             continue;
           }
 
+          const args = externalDeliveryArgs.length > 0
+            ? job.args.filter((arg) => arg !== "--no-deliver").concat(externalDeliveryArgs)
+            : job.args;
+
           try {
-            await runOpenClaw([...job.args, ...deliveryArgs]);
+            await runOpenClaw(args);
           } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             const looksLikeChannelError = /channel|conversation|target|announce/i.test(message);
 
-            if (deliveryArgs.length > 0 && looksLikeChannelError) {
+            if (externalDeliveryArgs.length > 0 && looksLikeChannelError) {
               await runOpenClaw(job.args);
-              lines.push(`- ${job.name}: created with workspace/dashboard reporting`);
+              lines.push(`- ${job.name}: external channel failed, created as Web UI/current-session job`);
               continue;
             }
 
@@ -323,21 +325,21 @@ The monitor will stream prices, run strategy/risk checks every ${intervalSeconds
 
         lines.push("");
         lines.push(`Automatic reports are enabled. Default report cadence: every ${risk_check_interval_minutes} minutes.`);
-        lines.push(channel && to ? `Delivery: ${channel} (${to}) plus workspace/dashboard archive.` : "Delivery: workspace/dashboard archive. No chat channel is required.");
+        lines.push(channel && to ? `Delivery: ${channel} (${to}) with best-effort fallback, plus workspace/dashboard archive.` : "Delivery: current Web UI session with runner fallback disabled, plus workspace/dashboard archive. No channel:last lookup is used.");
         return { content: [{ type: "text", text: lines.join("\n") }] };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         const interval = `${risk_check_interval_minutes}m`;
         const reason = message.toLowerCase().includes("pairing")
-          ? "需要先确认 Gateway pairing。"
+          ? "Gateway pairing is required."
           : /channel|conversation|target|announce/i.test(message)
-            ? "没有可用的聊天 channel；我会改用 workspace/dashboard 归档汇报，不要求用户先找 channel。"
-            : "Gateway cron 暂时不可用。";
+            ? "OpenClaw is still trying to resolve a channel. This version uses current session and --no-deliver instead of channel:last."
+            : "Gateway cron is temporarily unavailable.";
         return {
           content: [
             {
               type: "text",
-              text: `自动汇报还没启用：${reason}\n\n下一步：确认 Gateway/cron 可用后，我会按每 ${interval} 自动汇报。`,
+              text: `Automatic reports are not enabled yet: ${reason}\n\nNext: once Gateway cron is available, I will report every ${interval}.`,
             },
           ],
           isError: true,

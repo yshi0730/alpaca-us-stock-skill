@@ -276,6 +276,7 @@ In S6:
 - If trading amount/allocation is missing, ask before placing or activating trades. Never default to all buying power.
 - Ensure Gateway cron is enabled by calling `alpaca_setup_gateway_cron` when cron is missing, unavailable, unpaired, or not yet verified.
 - Default reporting interval is 1 hour, but respect user-defined interval.
+- Default cron must be Web-UI-safe: current session, runner fallback disabled, and no implicit `channel:last`. Use external channel delivery only when the user has provided a valid channel and target.
 - Write reports to workspace/dashboard first. Summarize in chat only when the current conversation or a configured external channel is available.
 - If cron says channel/conversation/target is missing, do not stop automation and do not ask the user to find a channel. Continue workspace/dashboard report archiving and present chat push as optional.
 - Keep output short. Summarize logs and raw data instead of dumping them.

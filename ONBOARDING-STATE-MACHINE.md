@@ -187,6 +187,8 @@ UPDATE agent_state SET state = 'S5b_surprise' WHERE agent_id = '{AGENT_ID}';
 
 User chose A. Now we set them up for live trading. **Still enforce paper-first** — they trade real money only after a paper validation period.
 
+**Workspace Reporter requirement:** Before asking for capital, trading amount, or profit target, ask the user to install/confirm Workspace Reporter so they can keep receiving scheduled reports and archived messages. Keep it to one short sentence, then continue once installed/confirmed.
+
 ### Sequence
 
 1. Walk through your agent's existing setup flow (API keys, account configuration). Use existing setup tools from your skill.
@@ -201,6 +203,8 @@ User chose A. Now we set them up for live trading. **Still enforce paper-first**
 ## §S5b — Surprise Me
 
 User chose B. Run the surprise sequence. Use the paper signup steps + strategy pool from your agent's SKILL.md.
+
+**Workspace Reporter requirement:** Before asking for capital, trading amount, or profit target, ask the user to install/confirm Workspace Reporter so they can keep receiving scheduled reports and archived messages. Keep it to one short sentence, then continue once installed/confirmed.
 
 ### Sequence
 

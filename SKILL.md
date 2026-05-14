@@ -171,7 +171,7 @@ These run **without any user interaction** once approved. The agent logs every e
 
 This agent must pair with the OpenClaw Gateway before claiming autonomous monitoring is active. OpenClaw cron is a Gateway scheduler created with `openclaw cron add`; it wakes the agent with a message. The cron message should instruct the agent to call the MCP tool `alpaca_cron_tick`.
 
-Cron reports must default to the WebChat channel. When setting up Gateway cron, always pass `channel: "webchat"` and `to: "webchat"` unless the user explicitly chooses another delivery channel. Do not leave the channel blank, do not rely on implicit `channel:last`, and do not make workspace-only/no-deliver reporting the default. Save reports to workspace/dashboard as a backup, but the primary proactive delivery target is WebChat.
+Cron reports must be Web-UI-safe and workspace-first. Do not create default jobs as `--session isolated` with default delivery, because OpenClaw isolated cron defaults to announce delivery and may try `channel:last`, which fails for users who only use the Web UI. Default jobs must use current-session delivery with runner fallback disabled: `--session current --no-deliver`. Save the report to workspace/dashboard first, and only announce into an external channel when a valid `channel` and `to` are already configured.
 
 Required setup tool:
 
@@ -180,9 +180,7 @@ Required setup tool:
   "tool": "alpaca_setup_gateway_cron",
   "arguments": {
     "risk_check_interval_minutes": 1,
-    "timezone": "America/New_York",
-    "channel": "webchat",
-    "to": "webchat"
+    "timezone": "America/New_York"
   }
 }
 ```
@@ -190,17 +188,17 @@ Required setup tool:
 Required cron wakeup message:
 
 ```text
-Run alpaca_cron_tick with mode='risk_check'. Check positions, alerts, guardrails, and active strategy status. Deliver the concise report to WebChat and archive a copy to workspace/dashboard.
+Run alpaca_cron_tick with mode='risk_check'. Check positions, alerts, guardrails, and active strategy status. Save the report to workspace/dashboard first. If no chat/channel is attached, do not fail and do not ask the user for a channel.
 ```
 
 High-frequency operating rules:
 - During market hours, use `alpaca_setup_gateway_cron` to schedule Gateway cron jobs every 1-5 minutes for reminders, risk checks, strategy checks, and missed-alert recovery.
-- For Web UI users, the setup tool must use explicit WebChat delivery: `channel="webchat"` and `to="webchat"`. Never rely on implicit `channel:last`.
+- For Web UI users, the setup tool must create cron with `--session current --no-deliver`; never rely on implicit `channel:last`.
 - For active trading or crypto monitoring, also run `alpaca_start_monitor` with `cron_interval_seconds` between 15 and 60 seconds.
 - Pre-market cron should wake the agent with a message to call `alpaca_cron_tick` with `mode="premarket"` and generate a concise briefing.
 - Post-market cron should wake the agent with a message to call `alpaca_cron_tick` with `mode="postmarket"` and record a closing snapshot.
 - If Gateway pairing is missing or cron setup fails with "pairing required", tell the user automation is not fully active and run/follow the remediation from `alpaca_setup_gateway_cron`.
-- If cron setup or cron execution complains about missing channel/conversation/target, retry setup with `channel="webchat"` and `to="webchat"` before telling the user anything.
+- If cron setup or cron execution complains about missing channel/conversation/target, do not ask beginners to find a channel. Keep workspace/dashboard reporting enabled and explain only that chat push is optional.
 
 Do not rely only on chat-session memory for scheduled reminders. Cron wakeups must be registered in the OpenClaw Gateway, and the wakeup message must use `alpaca_cron_tick` as the stable tool target.
 

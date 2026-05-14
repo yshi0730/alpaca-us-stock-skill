@@ -16,7 +16,7 @@
     "required": true,
     "cronSetupTool": "alpaca_setup_gateway_cron",
     "cronWakeupTool": "alpaca_cron_tick",
-    "note": "OpenClaw cron is created through the Gateway with openclaw cron add. Cron wakes the agent with a message that tells it to call alpaca_cron_tick.",
+    "note": "OpenClaw cron is created through the Gateway with openclaw cron add. Cron wakes the agent with a message that tells it to call alpaca_cron_tick. Reports are workspace/dashboard-first so a missing chat channel must not block scheduled reporting.",
     "recommendedSchedules": [
       {
         "name": "market-hours-risk-check",

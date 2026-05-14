@@ -171,6 +171,8 @@ These run **without any user interaction** once approved. The agent logs every e
 
 This agent must pair with the OpenClaw Gateway before claiming autonomous monitoring is active. OpenClaw cron is a Gateway scheduler created with `openclaw cron add`; it wakes the agent with a message. The cron message should instruct the agent to call the MCP tool `alpaca_cron_tick`.
 
+Cron reports must be workspace-first. A scheduled wakeup may not have a live chat/channel attached, so missing channel is not a user-facing failure. Save the report to workspace/dashboard first, and only announce into chat or an external channel when a valid channel is already available.
+
 Required setup tool:
 
 ```json
@@ -186,7 +188,7 @@ Required setup tool:
 Required cron wakeup message:
 
 ```text
-Run alpaca_cron_tick with mode='risk_check'. Check positions, alerts, guardrails, and active strategy status.
+Run alpaca_cron_tick with mode='risk_check'. Check positions, alerts, guardrails, and active strategy status. Save the report to workspace/dashboard first. If no chat/channel is attached, do not fail and do not ask the user for a channel.
 ```
 
 High-frequency operating rules:
@@ -195,6 +197,7 @@ High-frequency operating rules:
 - Pre-market cron should wake the agent with a message to call `alpaca_cron_tick` with `mode="premarket"` and generate a concise briefing.
 - Post-market cron should wake the agent with a message to call `alpaca_cron_tick` with `mode="postmarket"` and record a closing snapshot.
 - If Gateway pairing is missing or cron setup fails with "pairing required", tell the user automation is not fully active and run/follow the remediation from `alpaca_setup_gateway_cron`.
+- If cron setup or cron execution complains about missing channel/conversation/target, do not ask beginners to find a channel. Keep workspace/dashboard reporting enabled and explain only that chat push is optional.
 
 Do not rely only on chat-session memory for scheduled reminders. Cron wakeups must be registered in the OpenClaw Gateway, and the wakeup message must use `alpaca_cron_tick` as the stable tool target.
 

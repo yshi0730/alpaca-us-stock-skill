@@ -3,7 +3,7 @@ import { v4 as uuid } from "uuid";
 import { execFile, fork, type ChildProcess } from "node:child_process";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { promisify } from "node:util";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getClient } from "../utils.js";
@@ -22,6 +22,28 @@ const execFileAsync = promisify(execFile);
 let monitorProcess: ChildProcess | null = null;
 
 const AGENT_ID = "alpaca-us-stock-trader";
+const CRON_REPORT_INSTRUCTIONS =
+  "Save the report to the workspace/dashboard first. If no chat/channel is attached to this cron wakeup, do not fail and do not ask the user for a channel; keep the report archived and only surface urgent action items when a channel is available.";
+
+function archiveCronReport(mode: string, text: string): string | null {
+  try {
+    const workspaceRoot =
+      process.env.OPENCLAW_WORKSPACE_PATH ||
+      process.env.WORKSPACE_PATH ||
+      resolve(process.env.HOME || process.cwd(), ".openclaw", `workspace-${AGENT_ID}`);
+    const filesDir = resolve(workspaceRoot, "files");
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const reportPath = resolve(filesDir, `cron-${mode}-${timestamp}.md`);
+    const latestPath = resolve(filesDir, "latest-cron-report.md");
+
+    mkdirSync(filesDir, { recursive: true });
+    writeFileSync(reportPath, text, "utf8");
+    writeFileSync(latestPath, text, "utf8");
+    return reportPath;
+  } catch {
+    return null;
+  }
+}
 
 async function runOpenClaw(args: string[]): Promise<string> {
   const command = process.platform === "win32" ? "openclaw.cmd" : "openclaw";
@@ -172,18 +194,26 @@ The monitor will stream prices, run strategy/risk checks every ${intervalSeconds
       lines.push("");
       lines.push("Gateway cron: schedule isolated jobs that wake this agent and instruct it to call alpaca_cron_tick every 1-5 minutes during market hours, plus premarket/postmarket jobs for briefings.");
 
+      const reportText = lines.join("\n");
+      const archivePath = archiveCronReport(mode, reportText);
+      if (archivePath) {
+        lines.push(`- Report archived: ${archivePath}`);
+      } else {
+        lines.push("- Report archive: unavailable");
+      }
+
       return { content: [{ type: "text", text: lines.join("\n") }] };
     }
   );
 
   server.tool(
     "alpaca_setup_gateway_cron",
-    "Create OpenClaw Gateway cron jobs for this trading agent. Use this when cron is unavailable, not paired, missing, or when autonomous trading reminders need to be enabled.",
+    "Create OpenClaw Gateway cron jobs for this trading agent. Use this when cron is unavailable, not paired, missing, or when autonomous trading reminders need to be enabled. Defaults to workspace/dashboard reports and does not require a chat channel.",
     {
       risk_check_interval_minutes: z.number().int().min(5).max(1440).optional().default(60).describe("How often to wake the agent for proactive reports. Default is hourly."),
       timezone: z.string().optional().default("America/New_York").describe("Timezone for market-hour schedules."),
-      channel: z.string().optional().describe("Optional delivery channel for summaries, e.g. slack, telegram, discord."),
-      to: z.string().optional().describe("Optional delivery target, e.g. channel:C123 or a chat id. Requires channel."),
+      channel: z.string().optional().describe("Optional external delivery channel for summaries, e.g. slack, telegram, discord. Leave empty for default workspace/dashboard reports."),
+      to: z.string().optional().describe("Optional external delivery target, e.g. channel:C123 or a chat id. Requires channel. Leave empty for default workspace/dashboard reports."),
     },
     async ({ risk_check_interval_minutes, timezone, channel, to }) => {
       const jobs = [
@@ -201,7 +231,7 @@ The monitor will stream prices, run strategy/risk checks every ${intervalSeconds
             "--agent",
             AGENT_ID,
             "--message",
-            "Run alpaca_cron_tick with mode='risk_check'. Check positions, alerts, guardrails, and active strategy status. Return a concise risk summary and only surface urgent action items.",
+            `Run alpaca_cron_tick with mode='risk_check'. Check positions, alerts, guardrails, and active strategy status. ${CRON_REPORT_INSTRUCTIONS}`,
           ],
         },
         {
@@ -220,7 +250,7 @@ The monitor will stream prices, run strategy/risk checks every ${intervalSeconds
             "--agent",
             AGENT_ID,
             "--message",
-            "Run alpaca_cron_tick with mode='premarket'. Produce a concise premarket briefing focused on held positions, active strategies, risk alerts, and today's scheduled catalysts.",
+            `Run alpaca_cron_tick with mode='premarket'. Produce a concise premarket briefing focused on held positions, active strategies, risk alerts, and today's scheduled catalysts. ${CRON_REPORT_INSTRUCTIONS}`,
           ],
         },
         {
@@ -239,7 +269,7 @@ The monitor will stream prices, run strategy/risk checks every ${intervalSeconds
             "--agent",
             AGENT_ID,
             "--message",
-            "Run alpaca_cron_tick with mode='postmarket'. Record a closing portfolio snapshot and summarize trades, alerts, guardrail status, and next scheduled actions.",
+            `Run alpaca_cron_tick with mode='postmarket'. Record a closing portfolio snapshot and summarize trades, alerts, guardrail status, and next scheduled actions. ${CRON_REPORT_INSTRUCTIONS}`,
           ],
         },
       ];
@@ -273,21 +303,41 @@ The monitor will stream prices, run strategy/risk checks every ${intervalSeconds
             continue;
           }
 
-          await runOpenClaw([...job.args, ...deliveryArgs]);
+          try {
+            await runOpenClaw([...job.args, ...deliveryArgs]);
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            const looksLikeChannelError = /channel|conversation|target|announce/i.test(message);
+
+            if (deliveryArgs.length > 0 && looksLikeChannelError) {
+              await runOpenClaw(job.args);
+              lines.push(`- ${job.name}: created with workspace/dashboard reporting`);
+              continue;
+            }
+
+            throw err;
+          }
+
           lines.push(`- ${job.name}: created`);
         }
 
         lines.push("");
         lines.push(`Automatic reports are enabled. Default report cadence: every ${risk_check_interval_minutes} minutes.`);
+        lines.push(channel && to ? `Delivery: ${channel} (${to}) plus workspace/dashboard archive.` : "Delivery: workspace/dashboard archive. No chat channel is required.");
         return { content: [{ type: "text", text: lines.join("\n") }] };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         const interval = `${risk_check_interval_minutes}m`;
+        const reason = message.toLowerCase().includes("pairing")
+          ? "需要先确认 Gateway pairing。"
+          : /channel|conversation|target|announce/i.test(message)
+            ? "没有可用的聊天 channel；我会改用 workspace/dashboard 归档汇报，不要求用户先找 channel。"
+            : "Gateway cron 暂时不可用。";
         return {
           content: [
             {
               type: "text",
-              text: `自动汇报还没启用：${message.includes("pairing") ? "需要先确认 Gateway pairing。" : "Gateway cron 暂时不可用。"}\n\n下一步：确认 Gateway/cron 可用后，我会按每 ${interval} 自动汇报。`,
+              text: `自动汇报还没启用：${reason}\n\n下一步：确认 Gateway/cron 可用后，我会按每 ${interval} 自动汇报。`,
             },
           ],
           isError: true,
@@ -295,7 +345,6 @@ The monitor will stream prices, run strategy/risk checks every ${intervalSeconds
       }
     }
   );
-
   server.tool(
     "alpaca_stop_monitor",
     "Stop the monitoring daemon",

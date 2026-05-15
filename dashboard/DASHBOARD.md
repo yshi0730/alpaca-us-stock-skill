@@ -19,6 +19,23 @@ A device has exactly one tunnel and one hub. Multiple agents' dashboards
 are different **paths** on that one hub, never competing servers. That is
 why this skill only writes a file into the hub's public dir.
 
+## Python prerequisites
+
+`render.py` needs **only two** third-party packages — `httpx` and
+`jinja2` (see `requirements.txt`). `portfolio_metrics.py` is pure
+stdlib by design (no numpy). These are the **same two** packages the
+generic claw-dashboard-skill hub-app already declares, so on a device
+where Layer 0 is set up they are already installed: run `render.py`
+with the same Python interpreter that runs the hub. If unsure:
+
+```bash
+python3 -m pip install -r dashboard/requirements.txt
+```
+
+(The agent skill itself is Node; only this `dashboard/` subtree is
+Python. `manifest.json` does not yet declare a Python bin/dep — the
+Python env is inherited from Layer 0.)
+
 ## Setup (once, during onboarding)
 
 1. **Ensure Layer 0 is up.** Follow `claw-dashboard-skill`'s

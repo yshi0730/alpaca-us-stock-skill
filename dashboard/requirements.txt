@@ -1,0 +1,10 @@
+# Python deps for dashboard/render.py (the only third-party packages).
+# portfolio_metrics.py is intentionally pure stdlib (no numpy).
+#
+# These are the SAME two packages the generic claw-dashboard-skill
+# hub-app already declares (fastapi/uvicorn/jinja2/httpx). On a device
+# where Layer 0 is set up, they are already installed — run render.py
+# with that same Python env. Version floors match claw-dashboard-skill
+# so one env satisfies both.
+httpx>=0.25.0
+jinja2>=3.1.0

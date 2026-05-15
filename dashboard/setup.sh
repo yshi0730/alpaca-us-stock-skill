@@ -1,0 +1,156 @@
+#!/usr/bin/env bash
+#
+# One-command, idempotent bring-up for the US Equity dashboard.
+#
+#   bash dashboard/setup.sh                         # Layer 0 + Layer 1 infra
+#   bash dashboard/setup.sh creds KEY SECRET paper  # write creds + re-render
+#
+# The agent runs `setup.sh` at §S3, then `setup.sh creds ...` once the
+# user provides the Alpaca key. Everything here is deterministic and
+# safe to re-run every session / on cron — duplicate hubs / re-clones /
+# double tunnels are all guarded against. The agent never hand-types the
+# fragile 12-step infra sequence.
+#
+# Env overrides (testing / non-default layout):
+#   CLAW_HOME          default ~/.claw
+#   CLAW_SHARED_DB     default $CLAW_HOME/shared/shared.db
+#   CLAW_HUB_PUBLIC    default $CLAW_HOME/hub/public
+#   CLAW_DEVICE_SERIAL override device serial detection
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CLAW="${CLAW_HOME:-$HOME/.claw}"
+DASH_SKILL="$CLAW/dashboard-skill"
+HUB="$CLAW/hub"
+SHARED_DB="${CLAW_SHARED_DB:-$CLAW/shared/shared.db}"
+PUBLIC="${CLAW_HUB_PUBLIC:-$HUB/public}"
+AGENT_ID="alpaca-us-stock-trader"
+TUNNEL_API="https://api.clawln.app"
+DASH_REPO="https://github.com/yshi0730/claw-dashboard-skill.git"
+
+log() { printf '\033[36m[setup]\033[0m %s\n' "$*"; }
+
+# ── creds subcommand: write Alpaca creds + re-render ───────────────
+cmd_creds() {
+  local key="${1:-}" secret="${2:-}" mode="${3:-paper}"
+  if [ -z "$key" ] || [ -z "$secret" ]; then
+    echo "usage: setup.sh creds <KEY> <SECRET> [paper|live]" >&2
+    exit 2
+  fi
+  mkdir -p "$(dirname "$SHARED_DB")"
+  CLAW_SHARED_DB="$SHARED_DB" python3 - "$AGENT_ID" "$key" "$secret" "$mode" "$SHARED_DB" <<'PY'
+import sqlite3, os, sys
+agent, key, secret, mode, db_path = sys.argv[1:6]
+db = sqlite3.connect(db_path)
+db.execute("""CREATE TABLE IF NOT EXISTS agent_config(
+  agent_id TEXT NOT NULL, key TEXT NOT NULL, value TEXT NOT NULL,
+  value_type TEXT DEFAULT 'string', category TEXT DEFAULT 'preference',
+  label TEXT, updated_at TEXT DEFAULT (datetime('now')),
+  PRIMARY KEY(agent_id,key))""")
+paper = 'true' if mode != 'live' else 'false'
+for k, v, t in (("alpaca_key", key, "string"),
+                ("alpaca_secret", secret, "string"),
+                ("alpaca_paper", paper, "bool")):
+    db.execute("INSERT OR REPLACE INTO agent_config"
+               "(agent_id,key,value,value_type,category) VALUES(?,?,?,?, 'mode')",
+               (agent, k, v, t))
+db.commit(); db.close()
+print(f"creds written to agent_config (mode={mode})")
+PY
+  log "re-rendering with live creds"
+  CLAW_SHARED_DB="$SHARED_DB" CLAW_HUB_PUBLIC="$PUBLIC" python3 "$SCRIPT_DIR/render.py"
+}
+
+# ── setup subcommand: Layer 0 + Layer 1 infra (idempotent) ─────────
+cmd_setup() {
+  # 1. device serial (tunnel is keyed by it)
+  SERIAL="${CLAW_DEVICE_SERIAL:-$(cat /sys/class/dmi/id/product_serial 2>/dev/null || true)}"
+  if [ -z "$SERIAL" ]; then
+    echo "ERROR: device serial not found. Set CLAW_DEVICE_SERIAL." >&2
+    exit 1
+  fi
+  log "device serial: $SERIAL"
+
+  # 2. Layer 0 source: clone or pull (offline-tolerant)
+  if [ -d "$DASH_SKILL/.git" ]; then
+    log "updating claw-dashboard-skill"
+    git -C "$DASH_SKILL" pull --quiet || log "pull failed (offline?) — using existing checkout"
+  else
+    log "cloning claw-dashboard-skill"
+    git clone --quiet "$DASH_REPO" "$DASH_SKILL"
+  fi
+
+  # 3. python deps (Layer 0 hub + Layer 1 render)
+  log "installing python deps"
+  python3 -m pip install --quiet fastapi uvicorn jinja2 httpx || log "WARN Layer0 pip"
+  python3 -m pip install --quiet -r "$SCRIPT_DIR/requirements.txt" || log "WARN dashboard pip"
+
+  # 4. dirs + hub-app (cp refreshes hub to the cloned version)
+  mkdir -p "$HUB" "$CLAW/config" "$(dirname "$SHARED_DB")" "$PUBLIC"
+  cp -R "$DASH_SKILL/hub-app/." "$HUB/"
+  log "hub-app installed at $HUB"
+
+  # 5. register device tunnel (server-side idempotent: same URL per serial;
+  #    offline-tolerant: reuse existing tunnel.json if the call fails)
+  if curl -fsS -X POST "$TUNNEL_API/devices/register" \
+        -H "Content-Type: application/json" \
+        -d "{\"serial\":\"$SERIAL\"}" -o "$CLAW/config/tunnel.json" 2>/dev/null; then
+    log "tunnel registered"
+  elif [ -s "$CLAW/config/tunnel.json" ]; then
+    log "WARN register call failed — reusing existing tunnel.json"
+  else
+    echo "ERROR: tunnel registration failed and no cached tunnel.json" >&2
+    exit 1
+  fi
+  PUBLIC_URL=$(python3 -c "import json;print(json.load(open('$CLAW/config/tunnel.json')).get('public_url',''))" 2>/dev/null || true)
+  TOKEN=$(python3 -c "import json;print(json.load(open('$CLAW/config/tunnel.json')).get('tunnel_token',''))" 2>/dev/null || true)
+  log "tunnel url: ${PUBLIC_URL:-<unknown>}"
+
+  # 6. hub: start only if not already serving (no duplicate uvicorn)
+  if curl -fsS "http://127.0.0.1:3000/api/health" >/dev/null 2>&1; then
+    log "hub already running"
+  else
+    log "starting hub (uvicorn :3000)"
+    ( cd "$HUB" && nohup python3 -m uvicorn app:app --host 0.0.0.0 --port 3000 \
+        > "$CLAW/hub.log" 2>&1 & disown )
+    sleep 2
+  fi
+
+  # 7. cloudflared: start only if not already running
+  if pgrep -f "cloudflared tunnel run" >/dev/null 2>&1; then
+    log "cloudflared already running"
+  elif command -v cloudflared >/dev/null 2>&1 && [ -n "$TOKEN" ]; then
+    log "starting cloudflared"
+    nohup cloudflared tunnel run --token "$TOKEN" > "$CLAW/tunnel.log" 2>&1 & disown
+  else
+    log "WARN cloudflared missing or no token — page is local-only for now"
+  fi
+
+  # 8. first render (writes the placeholder/live page; safe without creds)
+  log "rendering dashboard page"
+  CLAW_SHARED_DB="$SHARED_DB" CLAW_HUB_PUBLIC="$PUBLIC" \
+    python3 "$SCRIPT_DIR/render.py" || log "WARN render"
+
+  # 9. status the agent relays to the user
+  if python3 -c "import sqlite3,sys;sys.exit(0 if sqlite3.connect('$SHARED_DB').execute(\"SELECT 1 FROM agent_config WHERE agent_id='$AGENT_ID' AND key='alpaca_key'\").fetchone() else 1)" 2>/dev/null; then
+    CREDS="set ✓"
+  else
+    CREDS="NOT set — run: bash dashboard/setup.sh creds <KEY> <SECRET> paper"
+  fi
+  cat <<EOF
+
+──────── dashboard ready ────────
+ URL    : ${PUBLIC_URL:-<tunnel pending>}/static/us-equity.html
+ hub    : http://127.0.0.1:3000   (log: $CLAW/hub.log)
+ db     : $SHARED_DB
+ creds  : $CREDS
+─────────────────────────────────
+EOF
+}
+
+case "${1:-setup}" in
+  creds) shift; cmd_creds "$@" ;;
+  setup | "") cmd_setup ;;
+  *) echo "usage: setup.sh [setup] | creds <KEY> <SECRET> [paper|live]" >&2; exit 2 ;;
+esac

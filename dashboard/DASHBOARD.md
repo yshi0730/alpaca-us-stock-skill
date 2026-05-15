@@ -36,34 +36,41 @@ python3 -m pip install -r dashboard/requirements.txt
 Python. `manifest.json` does not yet declare a Python bin/dep — the
 Python env is inherited from Layer 0.)
 
-## Setup (once, during onboarding)
+## Setup — two commands, that's it
 
-1. **Ensure Layer 0 is up.** Follow `claw-dashboard-skill`'s
-   `DASHBOARD-SETUP-GUIDE.md`: clone it, copy hub-app to `~/.claw/hub/`,
-   init `~/.claw/shared/shared.db`, register the device tunnel, start the
-   hub + cloudflared. If the user already has any dashboard on this
-   device, Layer 0 is already up — do not set it up again.
+The fragile 12-step infra sequence is proceduralized in `setup.sh`
+(idempotent — safe to re-run every session). The agent never hand-runs
+clone / pip / mkdir / tunnel-register / nohup.
 
-2. **Mirror Alpaca creds into shared.db.** Right after the user gives you
-   their Alpaca key, write it into `agent_config` so `render.py` (a
-   separate process) can read it. See `SCHEMA.md` → contract rule 7.
-
-3. **Run the renderer:**
+1. **Bring-up (at §S3):**
    ```bash
-   python3 dashboard/render.py
+   bash dashboard/setup.sh
    ```
-   It writes `~/.claw/hub/public/us-equity.html`. Tell the user the URL:
-   `https://device-<serial>.clawln.app/static/us-equity.html`
+   Clones/pulls Layer 0, installs deps, copies the hub, registers the
+   device tunnel, starts hub + cloudflared only if not already running,
+   renders the page. Prints a status block with the URL — relay it.
+   Re-running is harmless (no duplicate hubs / re-clones / double
+   tunnels). It will say `creds: NOT set` until step 2.
 
-## When to run render.py
+2. **Connect the account (at §S5, after the user gives the key):**
+   ```bash
+   bash dashboard/setup.sh creds <KEY> <SECRET> paper   # or: live
+   ```
+   Writes creds to `agent_config` and re-renders the live page.
 
-- **Every session start** (so the user always sees fresh numbers when
-  they open the page).
-- **On a cron during market hours** (e.g. every 15 min, 09:30–16:00 ET)
-  so the page stays current even when the user isn't chatting. Use the
-  same cron mechanism the skill uses for overnight research.
-- **After any trade / strategy change** (so the execution feed and
-  strategy panel reflect what just happened).
+URL to give the user:
+`https://device-<serial>.clawln.app/static/us-equity.html`
+
+## Keeping it fresh
+
+`setup.sh` is the one-time / occasional bring-up. For the recurring
+refresh use the lighter primitive directly — `python3 dashboard/render.py`
+(no clone/pip, just re-reads data and rewrites the page):
+
+- **Every session start** — fresh numbers when the user opens the page.
+- **On the Gateway cron during market hours** — page stays current even
+  when the user isn't chatting (cron runs render.py, not setup.sh).
+- **After any trade / strategy change** — feed + strategy panel update.
 
 `render.py` never raises: missing creds / Alpaca down / render error all
 write a calm status page and exit 0. It will never break your session.

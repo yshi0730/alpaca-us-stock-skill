@@ -576,14 +576,33 @@ point here.
 
 ### How to publish / refresh
 
+**Bring-up (idempotent, one command) — at §S3 and whenever infra may be
+missing:**
+
+```bash
+bash dashboard/setup.sh
+```
+
+Clones/pulls Layer 0, installs deps, copies the hub, registers the
+tunnel, starts hub + cloudflared only if not running, renders the page.
+Relay its printed status block (URL) to the user. Safe to re-run.
+
+**Connect the account — at §S5, once the user gives the key:**
+
+```bash
+bash dashboard/setup.sh creds <KEY> <SECRET> paper   # or: live
+```
+
+**Recurring refresh — cron / every session / after a trade — use the
+lighter primitive directly (no clone/pip):**
+
 ```bash
 python3 dashboard/render.py
 ```
 
-Run it (1) at §S3 once Layer 0 is up, (2) every session, (3) on the
-Gateway cron during market hours, (4) after any trade / strategy change.
-It never raises: missing creds / Alpaca down / render error all write a
-calm status page and exit 0 — it can never break your session.
+All three never raise: missing creds / Alpaca down / render error all
+write a calm status page and exit 0 — they can never break your session.
+Do NOT hand-run the 12-step infra sequence yourself; `setup.sh` is it.
 
 Do NOT build generic widgets, do NOT call `dashboard_update_widget`, do
 NOT hand-write HTML. The page is fixed; you only feed it data via the

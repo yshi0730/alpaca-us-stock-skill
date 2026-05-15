@@ -157,6 +157,8 @@ Guardrail breached:
   → PAUSE, notify user with details, wait for confirmation regardless of level
 ```
 
+**Every execution and every HOLD must be recorded** per the **Dashboard → Write contract** (rules 2–5): set a `client_order_id`, write the `trade_reasoning` row with the WHY before the order, backfill on fill, update `strategy_state`. A HOLD decision also gets a reasoning-only row. Skipping this leaves the dashboard's strategy/feed/guardrail panels empty.
+
 ### Recurring Strategies (DCA, Rebalance)
 
 For time-based strategies (not signal-based), the agent should set up cron execution:
@@ -199,6 +201,7 @@ High-frequency operating rules:
 - For active trading or crypto monitoring, also run `alpaca_start_monitor` with `cron_interval_seconds` between 15 and 60 seconds.
 - Pre-market cron should wake the agent with a message to call `alpaca_cron_tick` with `mode="premarket"` and generate a concise briefing.
 - Post-market cron should wake the agent with a message to call `alpaca_cron_tick` with `mode="postmarket"` and record a closing snapshot.
+- **Dashboard refresh**: on every `alpaca_cron_tick` (and after any trade/strategy change), re-run `python3 dashboard/render.py` so the fixed dashboard page stays current. It is cheap, never raises, and is the only way the page reflects new trades/P&L between sessions. See the **Dashboard** section.
 - If Gateway pairing is missing or cron setup fails with "pairing required", tell the user automation is not fully active and run/follow the remediation from `alpaca_setup_gateway_cron`.
 - If cron setup or cron execution complains about missing channel/conversation/target, retry setup with explicit `channel="webchat"` and `to="webchat"` before telling the user anything.
 
@@ -549,69 +552,85 @@ Key concepts to explain clearly when users encounter them:
 - **Dollar Cost Averaging (DCA)** — Investing fixed amounts at regular intervals to reduce timing risk
 
 
-## Dashboard Integration
+## Dashboard
 
-**The dashboard is auto-built at §S3 of the onboarding state machine** (see `ONBOARDING-STATE-MACHINE.md`). This section provides the Alpaca-specific widget template that §S3 uses.
+This agent has a **fixed, polished dashboard page** — NOT generic
+widgets. It is rendered by `dashboard/render.py` (bundled in this skill)
+and served by the generic claw-dashboard-skill hub. This section is the
+authoritative source; the onboarding state machine and cron section just
+point here.
 
-- **DO NOT** search for dashboard tools, install random npm packages, or write HTML from scratch
-- **DO NOT** ask the user "要不要搭建可视化面板？" — by S3 the user has installed workspace and expects you to just build it
-- **DO** follow the exact steps in `DASHBOARD-SETUP-GUIDE.md` and use the widget template below
+### Two layers (do not confuse)
 
-### Setup Flow
+- **Layer 0 — claw-dashboard-skill** (generic, you do NOT modify it):
+  the device's ONE hub + ONE cloudflare tunnel. Set it up via its
+  `DASHBOARD-SETUP-GUIDE.md` (clone, copy hub-app to `~/.claw/hub/`,
+  init `~/.claw/shared/shared.db`, register the device tunnel, start
+  hub + cloudflared). Shared by every dashboard on the device. If any
+  dashboard already exists on this device, Layer 0 is up — do not redo.
+- **Layer 1 — this skill's `dashboard/`**: `render.py` reads live
+  Alpaca + shared.db and writes `~/.claw/hub/public/us-equity.html`;
+  Layer 0 serves it at
+  `https://device-<serial>.clawln.app/static/us-equity.html`.
+  No second server, no second tunnel — it is a sub-page on Layer 0.
 
-**Complete setup instructions**: https://github.com/yshi0730/claw-dashboard-skill/blob/main/DASHBOARD-SETUP-GUIDE.md
+### How to publish / refresh
 
-Read and follow that guide step by step. Key info for this agent:
-- **agent_id**: `alpaca-us-stock-trader`
-- **module_name**: `美股交易面板`
-- **icon**: `📈`
-
-### Dashboard Template (Alpaca US Stock)
-
-When the user wants a dashboard, create these widgets focused on AGENT activity (not broker info — user can see positions/quotes in Alpaca app):
-
-Widget 1: strategy_list — "Active Strategies"
-  Show all running strategies with status (Running/Paused), description, uptime, P&L
-
-Widget 2: kpi_card — "Trades Executed Today"
-  Count of today's auto-executed trades, config: {tag: "AUTO", tag_color: "green", subtitle: "X auto / Y manual"}
-
-Widget 3: kpi_card — "Strategy P&L (30d)"
-  Total P&L with per-strategy breakdown in subtitle
-
-Widget 4: kpi_card — "Guardrail Status"
-  "ALL CLEAR" or warning, subtitle shows daily loss / max, trades / max, largest position / max
-
-Widget 5: activity_log — "Agent Execution Log"
-  Each trade with: time, action (BUY/SELL), symbol, qty, price, strategy name, and AI REASONING
-  The reasoning is the MOST IMPORTANT part — explain WHY the agent made each decision
-  Example reasoning: "10-day SMA ($176.80) crossed above 30-day SMA ($175.50). Volume 1.4x avg. RSI 55. Entry with 2% stop-loss."
-
-Widget 6: line_chart — "Strategy Cumulative P&L"
-  Performance curve over time, green color
-
-Widget 7: stat_row — "Automation Performance"
-  Auto trades (30d), win rate, avg reasoning time, guardrail triggers, user overrides
-
-Widget 8: table — "Full Execution History"
-  Complete log with columns: Time, Action, Symbol, Qty, Price, Strategy, Logic
-  Logic column renders as AI Reasoning block with blue left-border
-
-### Dashboard Data Refresh
-
-Every time the user opens a session, refresh the agent-specific dashboard widgets:
-
-```
-1. Call dashboard_list_widgets(module_id=MODULE_ID) → get widget IDs
-2. Fetch fresh data: strategy statuses, execution logs with AI reasoning, guardrail states, cumulative P&L
-3. Call dashboard_update_widget(widget_id=..., data=[fresh_data]) for each widget
+```bash
+python3 dashboard/render.py
 ```
 
-For autonomous strategies, also update the dashboard in the daily auto-trading summary — especially the Agent Execution Log and Guardrail Status widgets.
+Run it (1) at §S3 once Layer 0 is up, (2) every session, (3) on the
+Gateway cron during market hours, (4) after any trade / strategy change.
+It never raises: missing creds / Alpaca down / render error all write a
+calm status page and exit 0 — it can never break your session.
 
-### Rules
+Do NOT build generic widgets, do NOT call `dashboard_update_widget`, do
+NOT hand-write HTML. The page is fixed; you only feed it data via the
+write contract below. Full column specs + CREATE statements:
+`dashboard/SCHEMA.md`. Agent-facing guide: `dashboard/DASHBOARD.md`.
 
-- **Don't remove widgets** without asking
-- **Always show the URL** after setup so user can bookmark it
-- **Update data every session** — stale dashboards are worse than no dashboard
-- **Dashboard complements chat** — monitoring buttons and quick actions are on the dashboard, deep discussion happens in chat
+### Write contract — the dashboard is EMPTY without this
+
+`render.py` shows the live Alpaca account / positions / P&L / NAV / risk
+automatically. But the **Active Strategies / Execution Feed /
+Guardrails** panels stay blank unless you write the annotation tables in
+`~/.claw/shared/shared.db` (tables auto-create on first write):
+
+1. **Create / activate / pause / stop a strategy** → `INSERT OR REPLACE`
+   a `strategy_state` row (`id`, `agent_id='alpaca-us-stock-trader'`,
+   `name`, `template`, `status`, `authorization_level`, `params`,
+   `last_action`, `last_action_at`).
+2. **Place an order** → generate
+   `client_order_id = "alpaca-{strategy_id}-{uuid8}"`, pass it to Alpaca,
+   and immediately `INSERT` a `trade_reasoning` row (`client_order_id`,
+   `strategy_id`, `action`, `symbol`, `qty`, intended `price`,
+   `reasoning`, `decided_at=now`).
+3. **Fill confirmed** → `UPDATE trade_reasoning SET broker_order_id,
+   executed_at, price=<fill>, realized_pnl=<if closing>
+   WHERE client_order_id=?`.
+4. **Decide to HOLD** (analysed, chose not to act) → `INSERT` a
+   `trade_reasoning` row, `action='hold'`, `qty=NULL`, `reasoning`,
+   `decided_at=now`, no order. This is what proves the AI is thinking
+   even when it does nothing — keep these.
+5. **P&L / positions change** → `UPDATE strategy_state SET
+   pnl_cumulative, pnl_today, positions_count, last_action,
+   last_action_at` for the affected strategy.
+6. **Configure guardrails / mode** → `INSERT OR REPLACE` `agent_config`
+   rows (`category='guardrail'` / `'mode'`) for the well-known keys in
+   SCHEMA.md.
+7. **When the user gives the Alpaca key** → also `INSERT OR REPLACE`
+   into `agent_config` (`category='mode'`): `alpaca_key`,
+   `alpaca_secret`, `alpaca_paper`. `render.py` is a separate process
+   and reads creds from here, not from env. Without this the dashboard
+   shows "未连接 Alpaca". Same device, same trust boundary as the
+   skill's own `data/alpaca-skill.db`.
+
+Reasoning text is the product differentiator: write WHY with numbers
+(RSI 78, 10d +24% > 2σ, edge +6pp, stop −5%), never "bought because
+signal fired".
+
+### Setup values
+
+- `agent_id`: `alpaca-us-stock-trader`
+- URL to give the user: `https://device-<serial>.clawln.app/static/us-equity.html`

@@ -101,12 +101,18 @@ After authorization succeeds, continue directly to S3. After 2 failed attempts, 
 
 Workspace exists, no `agent_state` row. The user expects immediate value. Execute quietly in one turn, no questions and no setup logs:
 
-1. Init dashboard infrastructure following the dashboard skill setup guide. Use:
-   - `agent_id`: `alpaca-us-stock-trader`
-   - `module_name`: `美股/加密交易面板`
-   - `icon`: `📈`
+1. Ensure **Layer 0** is up (the generic claw-dashboard-skill hub +
+   tunnel) following its `DASHBOARD-SETUP-GUIDE.md`. If any dashboard
+   already exists on this device, Layer 0 is up — do not redo it.
+   `agent_id`: `alpaca-us-stock-trader`.
 
-2. Create 8 widgets from SKILL.md "Dashboard Template (Alpaca US Stock)" with realistic sample data.
+2. Publish this agent's **fixed** dashboard page — do NOT build generic
+   widgets. Run `python3 dashboard/render.py`; it writes
+   `~/.claw/hub/public/us-equity.html`, served at
+   `https://device-<serial>.clawln.app/static/us-equity.html`. The
+   page's strategy / feed / guardrail panels fill in once you start
+   writing the **Dashboard → Write contract** (see SKILL.md). At S3
+   they may still be empty — that is expected; live account data shows.
 
 3. Write sample weekly report to:
    `/home/storyclaw/.openclaw/workspace-alpaca-us-stock-trader/files/sample-report.html`
@@ -167,7 +173,11 @@ Live setup is allowed, but the agent must still protect beginners.
 Flow:
 1. Explain simply: live trading uses real money and can lose money. Paper trial is still mandatory before live activation.
 2. If user does not have Alpaca, provide the Alpaca signup/key instructions from SKILL.md. Tell them to begin with Paper mode first.
-3. Ask for Alpaca Key + Secret.
+3. Ask for Alpaca Key + Secret. **Immediately mirror them into
+   `agent_config`** per SKILL.md → Dashboard → Write contract rule 7
+   (`alpaca_key` / `alpaca_secret` / `alpaca_paper`, category='mode').
+   The dashboard renderer is a separate process and reads creds from
+   there; skip this and the dashboard shows "未连接 Alpaca".
 4. Before asking about capital, ask the user to install/confirm Workspace Reporter so they can keep receiving scheduled reports and archived messages:
    - "Before I ask about money, please install/confirm Workspace Reporter. This lets me keep sending scheduled trading reports and saves every report in your workspace."
    - Keep this to one short sentence. If the reporter is already installed, continue without extra explanation.
@@ -205,7 +215,11 @@ Alpaca 是最适合我这种 agent 的交易平台，因为它支持 API 自动�
 6. 把 Key 和 Secret 发给我
 ```
 
-3. Wait for Key + Secret. Then configure account.
+3. Wait for Key + Secret. Then configure account. **Immediately mirror
+   them into `agent_config`** per SKILL.md → Dashboard → Write contract
+   rule 7 (`alpaca_key` / `alpaca_secret` / `alpaca_paper`,
+   category='mode'), so the dashboard renderer (separate process) can
+   read them; otherwise the dashboard shows "未连接 Alpaca".
 
 4. Before asking about capital, ask the user to install/confirm Workspace Reporter so they can keep receiving scheduled reports and archived messages:
    - "Before I ask about money, please install/confirm Workspace Reporter. This lets me keep sending scheduled trading reports and saves every report in your workspace."

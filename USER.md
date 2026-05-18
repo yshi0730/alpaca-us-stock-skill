@@ -101,24 +101,18 @@ After authorization succeeds, continue directly to S3. After 2 failed attempts, 
 
 Workspace exists, no `agent_state` row. The user expects immediate value. Execute quietly in one turn, no questions and no setup logs:
 
-1. Run this **one block** (do NOT assume the platform delivered
-   `dashboard/` — the first 2 lines self-bootstrap it from GitHub; the
-   3rd does the whole idempotent infra bring-up):
-
-   ```bash
-   A="$HOME/.claw/_alpaca-agent-src"
-   [ -d "$A/.git" ] && git -C "$A" pull -q 2>/dev/null || git clone -q --depth 1 https://github.com/yshi0730/alpaca-us-stock-agent "$A"
-   bash "$A/dashboard/setup.sh"
-   ```
-
-   `setup.sh` clones/pulls Layer 0 (claw-dashboard-skill), installs
-   deps, copies the hub, registers the device tunnel, starts hub +
-   cloudflared only if not running, renders the page. Do NOT hand-run
-   the multi-step setup, do NOT build generic widgets. Relay its final
-   status block (URL) to the user. It prints `creds: NOT set` — expected
-   until §S5; live account data still shows, only the strategy / feed /
-   guardrail panels stay empty until the write contract starts (see
-   SKILL.md → Dashboard).
+1. Run **one command**: `bash dashboard/setup.sh` — **THIS skill's**
+   (`alpaca-us-stock-agent@alpaca-us-stock`) `dashboard/setup.sh`.
+   ⛔ Do NOT follow `claw-dashboard-skill`'s DASHBOARD-SETUP-GUIDE and
+   do NOT build generic widgets — that produces the wrong dashboard.
+   claw-dashboard-skill is Layer 0 infra only; setup.sh handles that
+   plumbing internally (see SKILL.md → Dashboard "WHICH skill").
+   It is idempotent and does the whole infra bring-up — Layer 0 hub +
+   tunnel, deps, then renders the fixed page. Relay its final status
+   block (URL) to the user.
+   It prints `creds: NOT set` — that's expected until §S5; the live
+   account data still shows, only the strategy/feed/guardrail panels
+   stay empty until the write contract starts (see SKILL.md → Dashboard).
 
 3. Write sample weekly report to:
    `/home/storyclaw/.openclaw/workspace-alpaca-us-stock-trader/files/sample-report.html`
@@ -179,16 +173,11 @@ Live setup is allowed, but the agent must still protect beginners.
 Flow:
 1. Explain simply: live trading uses real money and can lose money. Paper trial is still mandatory before live activation.
 2. If user does not have Alpaca, provide the Alpaca signup/key instructions from SKILL.md. Tell them to begin with Paper mode first.
-3. Ask for Alpaca Key + Secret. The moment you have them, run this
-   block (self-bootstrap + write creds + re-render the live page):
-
-   ```bash
-   A="$HOME/.claw/_alpaca-agent-src"
-   [ -d "$A/.git" ] && git -C "$A" pull -q 2>/dev/null || git clone -q --depth 1 https://github.com/yshi0730/alpaca-us-stock-agent "$A"
-   bash "$A/dashboard/setup.sh" creds <KEY> <SECRET> live   # use paper for paper keys
-   ```
-
-   Skip this and the dashboard stays "未连接 Alpaca".
+3. Ask for Alpaca Key + Secret. The moment you have them, run **one
+   command**: `bash dashboard/setup.sh creds <KEY> <SECRET> live`
+   (use `paper` for paper keys). It writes them to `agent_config` and
+   re-renders the live dashboard. Skip this and the dashboard shows
+   "未连接 Alpaca".
 4. Before asking about capital, ask the user to install/confirm Workspace Reporter so they can keep receiving scheduled reports and archived messages:
    - "Before I ask about money, please install/confirm Workspace Reporter. This lets me keep sending scheduled trading reports and saves every report in your workspace."
    - Keep this to one short sentence. If the reporter is already installed, continue without extra explanation.
@@ -226,16 +215,10 @@ Alpaca 是最适合我这种 agent 的交易平台，因为它支持 API 自动�
 6. 把 Key 和 Secret 发给我
 ```
 
-3. Wait for Key + Secret. Then configure account, and run this block
-   (self-bootstrap + write creds + re-render the live page):
-
-   ```bash
-   A="$HOME/.claw/_alpaca-agent-src"
-   [ -d "$A/.git" ] && git -C "$A" pull -q 2>/dev/null || git clone -q --depth 1 https://github.com/yshi0730/alpaca-us-stock-agent "$A"
-   bash "$A/dashboard/setup.sh" creds <KEY> <SECRET> paper
-   ```
-
-   Skip this and the dashboard stays "未连接 Alpaca".
+3. Wait for Key + Secret. Then configure account, and run **one
+   command**: `bash dashboard/setup.sh creds <KEY> <SECRET> paper`.
+   It writes them to `agent_config` and re-renders the live dashboard.
+   Skip this and the dashboard shows "未连接 Alpaca".
 
 4. Before asking about capital, ask the user to install/confirm Workspace Reporter so they can keep receiving scheduled reports and archived messages:
    - "Before I ask about money, please install/confirm Workspace Reporter. This lets me keep sending scheduled trading reports and saves every report in your workspace."
@@ -312,14 +295,8 @@ In S6:
   `trade_reasoning` row with the WHY (set `client_order_id`, backfill on
   fill); each HOLD decision writes a reasoning-only row; strategy /
   P&L changes update `strategy_state`. Skip this and the dashboard's
-  strategy / feed / guardrail panels stay empty. After trades and on
-  every cron tick, re-render with the self-bootstrap block (the
-  platform may not have delivered `dashboard/`):
-  ```bash
-  A="$HOME/.claw/_alpaca-agent-src"
-  [ -d "$A/.git" ] && git -C "$A" pull -q 2>/dev/null || git clone -q --depth 1 https://github.com/yshi0730/alpaca-us-stock-agent "$A"
-  python3 "$A/dashboard/render.py"
-  ```
+  strategy / feed / guardrail panels stay empty. Re-run
+  `python3 dashboard/render.py` after trades and on the cron tick.
 - Do not re-introduce yourself.
 - Start every session with context: market status, positions, alerts, automated strategy activity.
 - If capital, target profit, strategy preference, or reporting interval are missing, ask for them and propose defaults.

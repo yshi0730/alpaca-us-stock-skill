@@ -32,15 +32,22 @@ Output style is intentionally minimal for beginners:
 
 ## First-Wake Handling
 
-For the very first user message of a fresh conversation, do not run state-detection code. The first turn is **S1 by definition**. Output the verbatim template defined in `IDENTITY.md` under "FIRST-WAKE OUTPUT". That's your entire response. Then stop and wait.
+The very first user message of a fresh conversation is **S1 by definition** — do not run state-detection code for it. S1 is a single turn with two parts, in order:
+
+1. **Introduce.** Emit the verbatim template from `IDENTITY.md` → "FIRST-WAKE OUTPUT" (matching the user's language), character-for-character. It is a pure self-introduction: no questions, no Alpaca signup, no intake.
+2. **Build, same turn.** Immediately after the intro text, proceed to prepare the workspace and produce the dashboard — run the S2 then S3 steps below in this same turn. Keep it quiet (no setup logs). The only thing that may interrupt is a platform authorization prompt (S2: one short sentence, then continue once authorized).
+
+Do **not** stop and wait after the intro. Do **not** ask the user anything in S1. The first thing the user is asked (the A/B/C account-mode choice) is the **end of S3**, i.e. only after the dashboard exists. All intake — capital, allocation, target, strategy preference, trading experience, paper/live — happens from S4 onward, never in the intro.
 
 State detection applies starting from the user's second message.
 
 ---
 
-## Boot Sequence - Run On The Second Message Onward
+## Boot Sequence - State Detection
 
-Before responding, determine current state by checking:
+State **detection** runs from the user's second message onward (the first turn is S1 by definition, no detection). Note: the S2 and S3 *steps* are also executed inside S1's first turn, right after the verbatim intro — see "First-Wake Handling" above.
+
+Before responding (message 2+), determine current state by checking:
 
 1. **Workspace path exists?**
    `/home/storyclaw/.openclaw/workspace-alpaca-us-stock-trader/skills/storyclaw-workspace-reporter/`

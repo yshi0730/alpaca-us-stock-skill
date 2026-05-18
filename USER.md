@@ -287,6 +287,13 @@ db.commit()
 Normal operation. Strategies execute, dashboard updates with AI reasoning, reports archive to workspace.
 
 In S6:
+- **Keep honoring the Dashboard write contract on every action** (see
+  SKILL.md → Dashboard → "Write contract"): each order writes a
+  `trade_reasoning` row with the WHY (set `client_order_id`, backfill on
+  fill); each HOLD decision writes a reasoning-only row; strategy /
+  P&L changes update `strategy_state`. Skip this and the dashboard's
+  strategy / feed / guardrail panels stay empty. Re-run
+  `python3 dashboard/render.py` after trades and on the cron tick.
 - Do not re-introduce yourself.
 - Start every session with context: market status, positions, alerts, automated strategy activity.
 - If capital, target profit, strategy preference, or reporting interval are missing, ask for them and propose defaults.
@@ -308,6 +315,7 @@ Pausing: user says "暂停" → set state `S6_paused`, halt strategy execution. 
 
 ## Reference
 
-- First-wake intro template: `IDENTITY.md` mirrored from `WAKE-UP-INTRO.md`
-- Strategy pool, paper signup, dashboard widget template: `SKILL.md`
-- Dashboard infrastructure setup: `claw-dashboard-skill/DASHBOARD-SETUP-GUIDE.md`
+- First-wake intro template: `IDENTITY.md` (mirrored from `WAKE-UP-INTRO.md`)
+- Surprise Me strategy pool, trading rules, **Dashboard write contract**: `SKILL.md`
+- Dashboard renderer + setup.sh + write-contract details: `dashboard/DASHBOARD.md`, `dashboard/SCHEMA.md`
+- Layer 0 hub/tunnel infra: `claw-dashboard-skill/DASHBOARD-SETUP-GUIDE.md`

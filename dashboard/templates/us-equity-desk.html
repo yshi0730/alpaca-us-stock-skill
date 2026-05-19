@@ -146,6 +146,71 @@
   .footer-bar{margin-top:18px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--chip);display:flex;justify-content:space-between;align-items:center;font-size:10.5px;color:var(--muted);font-family:'JetBrains Mono',monospace;letter-spacing:.04em}
   @media (max-width:1280px){.layout{grid-template-columns:1fr}.risk{grid-template-columns:repeat(3,1fr)}.guard{grid-template-columns:repeat(2,1fr)}}
   @media (max-width:900px){.hero{grid-template-columns:repeat(2,1fr)}.app{grid-template-columns:84px 1fr}.brand-name,.brand-sub,.nav button>span,.nav-group,.auth-pill{display:none}}
+
+  /* ── Slim KPI strip (single horizontal data bar) ── */
+  .kpi-strip{display:flex;align-items:center;flex-wrap:wrap;gap:14px;
+    padding:11px 16px;margin-top:8px;
+    border:1px solid var(--line);border-radius:12px;
+    background:linear-gradient(180deg,color-mix(in srgb,var(--panel) 96%,transparent),color-mix(in srgb,var(--panel2) 92%,transparent));
+    font-family:'JetBrains Mono',ui-monospace,monospace}
+  .kpi-pair{display:inline-flex;align-items:baseline;gap:8px}
+  .kpi-k{font-size:9.5px;font-weight:800;letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
+  .kpi-v{font-size:15px;font-weight:800;color:var(--text);letter-spacing:-0.01em}
+  .kpi-v.good{color:var(--good)} .kpi-v.bad{color:var(--bad)}
+  .kpi-sep{color:var(--line);font-size:14px;user-select:none}
+  @media (max-width:1180px){.kpi-strip{font-size:12px;gap:10px;padding:9px 12px}.kpi-v{font-size:13.5px}.kpi-sep{opacity:.5}}
+  @media (max-width:760px){.kpi-sep{display:none}.kpi-strip{gap:8px 14px}}
+
+  /* ── AI Broadcast — terminal-style live activity feed ── */
+  .aib{margin-top:14px}
+  .aib-frame{border:1px solid var(--line);border-radius:14px;overflow:hidden;
+    background:linear-gradient(180deg,#06101e,#080d18);
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.02), 0 8px 28px rgba(0,0,0,.35)}
+  .aib-bar{display:flex;align-items:center;gap:12px;padding:9px 14px;
+    background:linear-gradient(180deg,#13243f,#0e1a30);border-bottom:1px solid var(--line);
+    font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;color:var(--muted)}
+  .aib-dots{display:flex;gap:6px}
+  .aib-dots i{width:11px;height:11px;border-radius:50%;display:block}
+  .aib-dots i:nth-child(1){background:#ff5f57}
+  .aib-dots i:nth-child(2){background:#febc2e}
+  .aib-dots i:nth-child(3){background:#28c840}
+  .aib-title{flex:1;text-align:center;letter-spacing:.04em}
+  .aib-live{display:inline-flex;align-items:center;gap:6px;font-weight:800;font-size:10px;letter-spacing:.14em;color:var(--good)}
+  .aib-pulse{width:7px;height:7px;border-radius:50%;background:var(--good);
+    box-shadow:0 0 0 3px color-mix(in srgb,var(--good) 22%,transparent);
+    animation:pulse 1.6s ease-in-out infinite}
+  .aib-body{max-height:300px;overflow-y:auto;padding:10px 14px;
+    font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;line-height:1.65;
+    background:radial-gradient(800px 200px at 100% 0%,rgba(75,226,173,.05),transparent 60%),
+               radial-gradient(900px 220px at 0% 100%,rgba(67,182,255,.04),transparent 60%);
+    scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+  .aib-body::-webkit-scrollbar{width:8px}
+  .aib-body::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px}
+  .aib-row{display:grid;grid-template-columns:78px 78px max-content 1fr;gap:10px;
+    padding:3px 0;align-items:baseline;color:#cfe1ff}
+  .aib-row + .aib-row{border-top:1px dashed rgba(41,65,97,.35)}
+  .aib-ts{color:#6e87ad;font-size:10.5px;letter-spacing:.02em}
+  .aib-tag{text-align:center;font-size:9.5px;font-weight:800;letter-spacing:.12em;
+    padding:2px 6px;border-radius:4px;text-transform:uppercase;
+    background:rgba(148,169,199,.16);color:var(--muted)}
+  .aib-tag-system{background:rgba(148,169,199,.18);color:#a8bbd8}
+  .aib-tag-user  {background:rgba(67,182,255,.20);color:#7fc8ff}
+  .aib-tag-agent {background:rgba(75,226,173,.18);color:#4be2ad}
+  .aib-tag-decide{background:rgba(143,141,255,.22);color:#b6b4ff}
+  .aib-tag-order {background:rgba(255,215,119,.20);color:#ffd777}
+  .aib-tag-fill  {background:rgba(75,226,173,.22);color:#4be2ad}
+  .aib-tag-hold  {background:rgba(148,169,199,.14);color:#94a9c7}
+  .aib-tag-warn  {background:rgba(255,184,77,.22);color:#ffb84d}
+  .aib-tag-error {background:rgba(255,127,159,.22);color:#ff7f9f}
+  .aib-actor{color:#8f8dff;font-weight:600;white-space:nowrap}
+  .aib-msg{color:#e6eeff;word-break:break-word}
+  .aib-row.aib-warn  .aib-msg{color:#ffe2ad}
+  .aib-row.aib-error .aib-msg{color:#ffc6d3}
+  .aib-row.aib-done  .aib-msg::before{content:"✓ ";color:var(--good);font-weight:800}
+  .aib-foot{display:flex;justify-content:space-between;align-items:center;padding:8px 14px;
+    border-top:1px solid var(--line);background:rgba(8,15,29,.6);
+    font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);letter-spacing:.04em}
+  @media (max-width:900px){.aib-row{grid-template-columns:64px 70px 1fr;gap:8px}.aib-actor{grid-column:1/-1}}
 </style>
 </head>
 <body>
@@ -202,13 +267,47 @@
       </div>
     </div>
 
-    <!-- Hero KPIs -->
-    <div class="hero">
-      <div class="card"><div class="k">投资组合价值</div><div class="v">{{ ctx.account.equity_fmt }}</div><div class="meta">cash {{ ctx.account.cash_fmt }} · buying power {{ ctx.account.buying_power_fmt }} ({{ ctx.account.buying_power_mult }})</div></div>
-      <div class="card"><div class="k">日内盈亏</div><div class="v {{ ctx.account.day_pl_class }}">{{ ctx.account.day_pl_fmt }}</div><div class="meta {{ ctx.account.day_pl_class }}">{{ ctx.account.day_pl_pct_fmt }} · {{ ctx.feed|length }} 笔今日</div></div>
-      <div class="card"><div class="k">YTD vs SPY</div><div class="v good">{{ ctx.metrics.ytd_fmt }}</div><div class="meta">SPY {{ ctx.metrics.spy_ytd_fmt }} · α {{ ctx.metrics.alpha_fmt }}</div></div>
-      <div class="card"><div class="k">夏普 (1Y) / Max DD</div><div class="v">{{ ctx.metrics.sharpe }} <span style="color:var(--muted);font-size:14px">/ {{ ctx.metrics.max_dd_fmt }}</span></div><div class="meta">Sortino {{ ctx.metrics.sortino }} · VaR {{ ctx.metrics.var_fmt }}</div></div>
+    <!-- KPI strip (slim, single-line) -->
+    <div class="kpi-strip">
+      <span class="kpi-pair"><span class="kpi-k">EQUITY</span><span class="kpi-v">{{ ctx.account.equity_fmt }}</span></span>
+      <span class="kpi-sep">·</span>
+      <span class="kpi-pair"><span class="kpi-k">DAY</span><span class="kpi-v {{ ctx.account.day_pl_class }}">{{ ctx.account.day_pl_fmt }} ({{ ctx.account.day_pl_pct_fmt }})</span></span>
+      <span class="kpi-sep">·</span>
+      <span class="kpi-pair"><span class="kpi-k">YTD</span><span class="kpi-v good">{{ ctx.metrics.ytd_fmt }}</span></span>
+      <span class="kpi-sep">·</span>
+      <span class="kpi-pair"><span class="kpi-k">α vs SPY</span><span class="kpi-v good">{{ ctx.metrics.alpha_fmt }}</span></span>
+      <span class="kpi-sep">·</span>
+      <span class="kpi-pair"><span class="kpi-k">CASH</span><span class="kpi-v">{{ ctx.account.cash_fmt }}</span></span>
+      <span class="kpi-sep">·</span>
+      <span class="kpi-pair"><span class="kpi-k">BUYING PWR</span><span class="kpi-v">{{ ctx.account.buying_power_fmt }} <span style="color:var(--muted);font-weight:500">({{ ctx.account.buying_power_mult }})</span></span></span>
     </div>
+
+    {# AI Broadcast — reads ctx.broadcast (built by us_equity_context._broadcast).
+       Empty table renders a single placeholder row from the context layer. #}
+    <section class="aib">
+      <div class="aib-frame">
+        <header class="aib-bar">
+          <div class="aib-dots"><i></i><i></i><i></i></div>
+          <div class="aib-title">storyclaw@alpaca-trader — strategy.sh</div>
+          <div class="aib-live"><span class="aib-pulse"></span>LIVE</div>
+        </header>
+        <div class="aib-body" id="aibBody">
+          {% for row in ctx.broadcast %}
+          <div class="aib-row aib-{{ row.level }}">
+            <span class="aib-ts">{{ row.ts }}</span>
+            <span class="aib-tag aib-tag-{{ row.tag|lower }}">{{ row.tag }}</span>
+            <span class="aib-actor">{{ row.actor }}</span>
+            <span class="aib-msg">{{ row.msg }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        <footer class="aib-foot">
+          <span>{{ ctx.broadcast|length }} events · scroll to replay</span>
+          <span>{{ ctx.meta.generated_at }} · refresh on cron tick</span>
+        </footer>
+      </div>
+    </section>
+    <script>(function(){var b=document.getElementById('aibBody');if(b)b.scrollTop=b.scrollHeight;})();</script>
 
     <!-- NAV chart + strategies -->
     <section class="layout">

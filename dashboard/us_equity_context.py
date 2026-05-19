@@ -153,6 +153,47 @@ def _symbol_strategy_map(db: sqlite3.Connection, agent_id: str) -> dict[str, str
     return {r["symbol"]: (r["sname"] or "—") for r in rows}
 
 
+def _broadcast(db: sqlite3.Connection, agent_id: str, limit: int = 40) -> list[dict]:
+    """Most recent N AI Broadcast rows, OLDEST first (so the template's
+    auto-scroll-to-bottom surfaces the latest event). Falls back to a
+    single placeholder row when the table doesn't exist yet OR when no
+    agent has written anything — keeps the panel visually populated."""
+    rows = _safe(
+        lambda: db.execute(
+            "SELECT ts, tag, actor, msg, level FROM ai_broadcast "
+            "WHERE agent_id = ? ORDER BY id DESC LIMIT ?",
+            (agent_id, limit),
+        ).fetchall(),
+        [],
+    )
+    if not rows:
+        return [{
+            "ts": "—",
+            "tag": "SYSTEM",
+            "actor": "",
+            "msg": "dashboard ready · waiting for the agent's first action…",
+            "level": "info",
+        }]
+    out: list[dict] = []
+    for r in reversed(rows):  # oldest at top, newest at bottom
+        ts_raw = (r["ts"] or "") if isinstance(r, sqlite3.Row) else (r.get("ts") or "")
+        ts_short = ts_raw.split(" ")[-1][:8] if " " in ts_raw else ts_raw[:8]
+        tag = ((r["tag"] if isinstance(r, sqlite3.Row) else r.get("tag")) or "AGENT").upper()
+        level = ((r["level"] if isinstance(r, sqlite3.Row) else r.get("level")) or "info").lower()
+        if tag not in {"SYSTEM","USER","AGENT","DECIDE","ORDER","FILL","HOLD","WARN","ERROR"}:
+            tag = "AGENT"
+        if level not in {"info","done","warn","error"}:
+            level = "info"
+        out.append({
+            "ts": ts_short or "—",
+            "tag": tag,
+            "actor": (r["actor"] if isinstance(r, sqlite3.Row) else r.get("actor")) or "",
+            "msg": (r["msg"] if isinstance(r, sqlite3.Row) else r.get("msg")) or "",
+            "level": level,
+        })
+    return out
+
+
 def _reasoning_index(db: sqlite3.Connection, agent_id: str) -> dict:
     """Index trade_reasoning by client/broker order id for feed enrichment,
     plus the recent rows themselves (drives the feed)."""
@@ -512,6 +553,7 @@ def build_context(ac: AlpacaClient, db: sqlite3.Connection) -> dict:
         "strategies": _strategies(db, AGENT_ID),
         "holdings": _holdings(positions, snap["equity"], sym_strat),
         "feed": _feed(ac, ridx),
+        "broadcast": _broadcast(db, AGENT_ID),
         "risk": risk,
         "guardrails": _guardrails(
             cfg,

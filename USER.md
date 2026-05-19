@@ -302,11 +302,17 @@ db.commit()
 Normal operation. Strategies execute, dashboard updates with AI reasoning, reports archive to workspace.
 
 In S6:
-- **Keep honoring the Dashboard write contract on every action** (see
-  SKILL.md → Dashboard → "Write contract"): each order writes a
-  `trade_reasoning` row with the WHY (set `client_order_id`, backfill on
-  fill); each HOLD decision writes a reasoning-only row; strategy /
-  P&L changes update `strategy_state`. Skip this and the dashboard's
+- **Broadcast every meaningful step** (Dashboard write-contract rule 0):
+  whenever you scan / plan / decide / order / fill / HOLD / warn /
+  error, append one line to the **AI Broadcast** terminal panel via
+  `python3 dashboard/broadcast.py TAG "msg" --actor "[Foo]"`. This is
+  the page's narrative pulse — without it the top panel is empty and
+  the dashboard looks idle. Be liberal: one line per action / decision.
+- **Honor the rest of the Dashboard write contract on every action**
+  (see SKILL.md → Dashboard → "Write contract" rules 1–7): each order
+  writes a `trade_reasoning` row with the WHY (set `client_order_id`,
+  backfill on fill); each HOLD decision writes a reasoning-only row;
+  strategy / P&L changes update `strategy_state`. Skip this and the
   strategy / feed / guardrail panels stay empty. Re-run
   `python3 dashboard/render.py` after trades and on the cron tick.
 - Do not re-introduce yourself.

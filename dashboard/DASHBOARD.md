@@ -85,13 +85,17 @@ write a calm status page and exit 0. It will never break your session.
 
 ## Keeping the dashboard truthful (the write contract)
 
-The page's Active Strategies / Execution Feed / Guardrails panels are
-**empty** unless you write the annotation layer. Every strategy change,
-every order, every HOLD decision must be recorded in shared.db per the
-6+1 rules in `SCHEMA.md` → "Agent write contract". That is what turns a
-generic account view into "an AI that explains every decision".
+The page's **AI Broadcast** (top terminal panel), Active Strategies,
+Execution Feed, and Guardrails panels are **empty** unless you write the
+annotation layer. Every meaningful step, every strategy change, every
+order, every HOLD decision must be recorded in shared.db per the rules
+in `SCHEMA.md` → "Agent write contract". That is what turns a generic
+account view into "an AI that explains every decision".
 
-In short:
+In short (highest-frequency rule first):
+- **every meaningful step → append to `ai_broadcast`** via
+  `python3 dashboard/broadcast.py TAG "msg" --actor "[Foo]"`. This drives
+  the top terminal panel — without it the page looks idle.
 - create/activate/pause a strategy → upsert `strategy_state`
 - place an order → set a `client_order_id` + write a `trade_reasoning`
   row (reasoning + decided_at)
@@ -100,7 +104,7 @@ In short:
 - P&L changes → update the cached fields on `strategy_state`
 - configure guardrails / Alpaca creds → upsert `agent_config`
 
-See `SCHEMA.md` for exact columns and SQL.
+See `SCHEMA.md` for exact columns, the broadcast TAG taxonomy, and SQL.
 
 ## Env overrides (testing only)
 
@@ -117,6 +121,8 @@ See `SCHEMA.md` for exact columns and SQL.
 | `us_equity_context.py` | assembles the template context (formatting, derivations) |
 | `alpaca_client.py` | read-only Alpaca REST wrapper |
 | `portfolio_metrics.py` | pure-stdlib Sharpe / beta / VaR / drawdown / etc. |
+| `broadcast.py` | agent helper — append one row to the AI Broadcast feed |
 | `templates/us-equity-desk.html` | the Jinja page |
-| `SCHEMA.md` | shared.db tables + the agent write contract |
+| `SCHEMA.md` | shared.db tables (incl. `ai_broadcast`) + the agent write contract |
+| `_preview.py` | dev-only — renders the template with a fully-mocked ctx into `/tmp/alpaca-preview.html` for visual iteration |
 | `tests/` | smoke tests (`_smoke_metrics.py` pure; `_smoke_e2e.py` needs a paper key) |

@@ -121,7 +121,7 @@ Guardrail breached:
   → PAUSE, notify user with details, wait for confirmation regardless of level
 ```
 
-**Every execution and every HOLD must be recorded** per the **Dashboard → Write contract** (rules 2–5): set a `client_order_id`, write the `trade_reasoning` row with the WHY before the order, backfill on fill, update `strategy_state`. A HOLD decision also gets a reasoning-only row. Skipping this leaves the dashboard's strategy/feed/guardrail panels empty.
+**Every meaningful step must be recorded** per the **Dashboard → Write contract**: append one `ai_broadcast` row narrating what you're doing (rule 0), and on actual orders/HOLDs set a `client_order_id`, write the `trade_reasoning` row with the WHY before the order, backfill on fill, update `strategy_state` (rules 2–5). Skipping this leaves the dashboard's top broadcast / strategy / feed / guardrail panels empty.
 
 ### Recurring Strategies (DCA, Rebalance)
 
@@ -465,9 +465,23 @@ you only feed it data via the write contract below. Full column specs + CREATE s
 ### Write contract — the dashboard is EMPTY without this
 
 `render.py` shows the live Alpaca account / positions / P&L / NAV / risk
-automatically. But the **Active Strategies / Execution Feed /
-Guardrails** panels stay blank unless you write the annotation tables in
-`~/.claw/shared/shared.db` (tables auto-create on first write):
+automatically. But the **AI Broadcast / Active Strategies / Execution
+Feed / Guardrails** panels stay blank unless you write the annotation
+tables in `~/.claw/shared/shared.db` (tables auto-create on first write):
+
+0. **EVERY MEANINGFUL STEP — broadcast it.** Highest frequency rule.
+   The terminal panel at the top of the dashboard (the "AI Broadcast")
+   is empty until you write to `ai_broadcast`. Whenever you scan,
+   decide, order, fill, HOLD, warn, or error — append one row:
+   ```bash
+   python3 dashboard/broadcast.py TAG "msg" --actor "[Foo]" [--level info|done|warn|error]
+   ```
+   TAG ∈ `{SYSTEM, USER, AGENT, DECIDE, ORDER, FILL, HOLD, WARN, ERROR}`.
+   This is what makes the dashboard *feel* like an AI working in real
+   time. Rules 1–7 below give the structured panels their data; rule 0
+   gives the page its narrative pulse. Be liberal: one row per action,
+   one row per decision (incl. "thinking about it" / "holding"). See
+   `dashboard/SCHEMA.md` → "Table 4 — ai_broadcast" for the taxonomy.
 
 1. **Create / activate / pause / stop a strategy** → `INSERT OR REPLACE`
    a `strategy_state` row (`id`, `agent_id='alpaca-us-stock-trader'`,

@@ -129,9 +129,69 @@ KV-shaped, scoped by `agent_id`, categorized so the dashboard filters to `catego
 
 ---
 
+## Table 4 — `ai_broadcast`
+
+Append-only feed of "what the AI is doing right now." Drives the
+terminal-style **AI Broadcast** panel at the top of the dashboard. The
+agent writes one row per meaningful step; the dashboard reads the most
+recent N (default 40), reversed so the newest is at the bottom.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | INTEGER PK AUTOINCREMENT | sort key (monotonic, more reliable than `ts`) |
+| `agent_id` | TEXT NOT NULL | always `'alpaca-us-stock-trader'` |
+| `ts` | TEXT NOT NULL DEFAULT `datetime('now')` | UTC; the renderer keeps only `HH:MM:SS` |
+| `tag` | TEXT NOT NULL | `SYSTEM` / `USER` / `AGENT` / `DECIDE` / `ORDER` / `FILL` / `HOLD` / `WARN` / `ERROR` |
+| `actor` | TEXT DEFAULT `''` | bracketed label, e.g. `[Screener]`, `[Trader]`, `[Risk]`, `[Broker]`, `[Report]` |
+| `msg` | TEXT NOT NULL | short narrative (one line, ≤ ~120 chars renders best) |
+| `level` | TEXT NOT NULL DEFAULT `'info'` | `info` / `done` (✓ green prefix) / `warn` (amber) / `error` (red) |
+
+`CREATE TABLE IF NOT EXISTS` is invoked by `dashboard/broadcast.py` on
+every write — no separate init step. Table is append-only; pruning is
+the dashboard's read-side problem (LIMIT 40), not the agent's.
+
+### How the agent appends a row
+
+Prefer the helper (validates `tag`/`level`, auto-creates the table):
+
+```bash
+python3 dashboard/broadcast.py TAG MSG [--actor "[Foo]"] [--level info|done|warn|error]
+```
+
+Direct SQL is also fine when you're already in Python:
+
+```python
+db.execute("INSERT INTO ai_broadcast(agent_id,tag,actor,msg,level) VALUES(?,?,?,?,?)",
+           ("alpaca-us-stock-trader", "AGENT", "[Screener]", "扫描 SP500…", "info"))
+```
+
+### Tag taxonomy (the colour bar in the terminal)
+
+| tag | when to use |
+|-----|-------------|
+| `SYSTEM` | infra events the agent didn't *do* (market open/close, cron tick, hub started, idle) |
+| `USER` | user direct message / instruction surfaced into the feed |
+| `AGENT` | a step the agent is doing (scan / plan / analyze / draft / refine) |
+| `DECIDE` | concrete decision narrative: "buy NVDA 5 because …" |
+| `ORDER` | submitted an order (include the `client_order_id`) |
+| `FILL` | broker confirmed a fill |
+| `HOLD` | analyzed and chose NOT to act, plus the why |
+| `WARN` | non-fatal anomaly (vol spike, signal drift, guardrail near-miss) |
+| `ERROR` | failed action (order rejected, API down, etc.) — use `--level error` |
+
+---
+
 ## Agent write contract (alpaca-us-stock-agent)
 
 When we update the agent's SKILL.md / USER.md, it must do the following. The dashboard assumes these are honored.
+
+**0. Always — broadcast every meaningful step.** Whenever the agent is
+*about to do*, *did*, or *decided not to do* something, append one row
+to `ai_broadcast` via `python3 dashboard/broadcast.py TAG MSG --actor
+"[Foo]"` (see Table 4). This is the highest-frequency write — once per
+step (scan, decide, order, fill, HOLD, warn, error). Rules 1–7 below
+remain mandatory for the structured panels; broadcast is the *narrative*
+on top of them, and it drives the prominent top-of-page terminal panel.
 
 1. **On strategy create / activate / pause / stop**
    `INSERT OR REPLACE` a `strategy_state` row. Keep `status`, `authorization_level`, `params` current.
@@ -177,7 +237,8 @@ Everything else the dashboard needs (equity, cash, buying power, positions, fill
 | Panel | Source |
 |-------|--------|
 | Top status (NYSE open, account #) | Alpaca `/v2/clock`, `/v2/account` |
-| Hero KPIs (value, day P&L, YTD, Sharpe) | Alpaca account + `/v2/account/portfolio/history`; Sharpe/DD computed |
+| **AI Broadcast** (top terminal panel) | `ai_broadcast` WHERE agent_id, latest 40, oldest-first |
+| KPI strip (equity, day P&L, YTD, α, cash, buying power) | Alpaca account + `/v2/account/portfolio/history` |
 | NAV vs SPY chart | Alpaca portfolio history + `/v2/stocks/bars` (SPY) |
 | Active Strategies | `strategy_state` WHERE agent_id |
 | Holdings table | Alpaca `/v2/positions`; 策略 column ← `trade_reasoning` derivation |

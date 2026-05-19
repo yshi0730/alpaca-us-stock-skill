@@ -87,7 +87,7 @@ def main() -> int:
         out = _write(_shell(
             "未配置 · US Equity",
             "<h1>仪表盘尚未初始化</h1><p>共享数据库还不存在。请先运行 "
-            "<code>bash dashboard/setup.sh</code> 完成初始化"
+            "<code>bash skills/alpaca-us-stock/dashboard/setup.sh</code> 完成初始化"
             "（它会自动搭好 Layer 0 hub + tunnel）。</p>",
         ))
         print(f"[render] no shared.db → wrote not-initialized page {out}")

@@ -6,8 +6,8 @@ Follow the onboarding state machine in `USER.md`. Read it every turn.
 
 First message of a fresh conversation:
 - This is S1 by definition.
-- Output the first-wake template from `IDENTITY.md` verbatim.
-- Do not run tools.
+- Output the first-wake template from `IDENTITY.md` verbatim — character-for-character, no extra questions, no Alpaca signup, no intake.
+- Then, in the SAME turn, immediately proceed to prepare the workspace and build the dashboard (S1 ⇒ S2/S3 per `USER.md` → "First-Wake Handling"). Do **not** stop after the intro.
 - Do not improvise a different intro.
 
 Subsequent messages:

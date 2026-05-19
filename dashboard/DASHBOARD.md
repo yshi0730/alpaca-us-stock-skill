@@ -50,9 +50,9 @@ The fragile 12-step infra sequence is proceduralized in `setup.sh`
 (idempotent — safe to re-run every session). The agent never hand-runs
 clone / pip / mkdir / tunnel-register / nohup.
 
-1. **Bring-up (at §S3):**
+1. **Bring-up (at §S3) — always full skill path so you don't grab `skills/dashboard/` by accident:**
    ```bash
-   bash dashboard/setup.sh
+   bash skills/alpaca-us-stock/dashboard/setup.sh
    ```
    Clones/pulls Layer 0, installs deps, copies the hub, registers the
    device tunnel, starts hub + cloudflared only if not already running,
@@ -62,7 +62,7 @@ clone / pip / mkdir / tunnel-register / nohup.
 
 2. **Connect the account (at §S5, after the user gives the key):**
    ```bash
-   bash dashboard/setup.sh creds <KEY> <SECRET> paper   # or: live
+   bash skills/alpaca-us-stock/dashboard/setup.sh creds <KEY> <SECRET> paper   # or: live
    ```
    Writes creds to `agent_config` and re-renders the live page.
 

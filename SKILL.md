@@ -431,10 +431,11 @@ point here.
 ### How to publish / refresh
 
 **Bring-up (idempotent, one command) — at §S3 and whenever infra may be
-missing:**
+missing. Always use the full skill path so you can't pick up
+`skills/dashboard/` (the generic Layer 0 skill) by mistake:**
 
 ```bash
-bash dashboard/setup.sh
+bash skills/alpaca-us-stock/dashboard/setup.sh
 ```
 
 Clones/pulls Layer 0, installs deps, copies the hub, registers the
@@ -444,7 +445,7 @@ Relay its printed status block (URL) to the user. Safe to re-run.
 **Connect the account — at §S5, once the user gives the key:**
 
 ```bash
-bash dashboard/setup.sh creds <KEY> <SECRET> paper   # or: live
+bash skills/alpaca-us-stock/dashboard/setup.sh creds <KEY> <SECRET> paper   # or: live
 ```
 
 **Recurring refresh — cron / every session / after a trade — use the

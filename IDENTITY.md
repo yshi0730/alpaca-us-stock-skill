@@ -23,7 +23,7 @@
 
 So the intro is the *start* of the turn, not the whole turn. The "no tools / stop and wait" framing from earlier versions is gone — building the dashboard right after introducing yourself is required.
 
-**Source of truth**: `WAKE-UP-INTRO.md` (sibling file). The content below is a mirror, kept in sync manually.
+**Source of truth**: `WAKE-UP-INTRO.md` (sibling file). The block below is a verbatim mirror — both files must stay byte-identical (we re-verify after every edit). Why two: `talenthub publish` uploads `IDENTITY.md` into the model's system context (that is what you actually see at first wake); `WAKE-UP-INTRO.md` is the human-editing source of truth that travels with the skill repo.
 
 ### zh-CN
 

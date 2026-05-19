@@ -2,8 +2,8 @@
 #
 # One-command, idempotent bring-up for the US Equity dashboard.
 #
-#   bash dashboard/setup.sh                         # Layer 0 + Layer 1 infra
-#   bash dashboard/setup.sh creds KEY SECRET paper  # write creds + re-render
+#   bash skills/alpaca-us-stock/dashboard/setup.sh                         # Layer 0 + Layer 1 infra
+#   bash skills/alpaca-us-stock/dashboard/setup.sh creds KEY SECRET paper  # write creds + re-render
 #
 # The agent runs `setup.sh` at §S3, then `setup.sh creds ...` once the
 # user provides the Alpaca key. Everything here is deterministic and
@@ -191,7 +191,7 @@ cmd_setup() {
   if python3 -c "import sqlite3,sys;sys.exit(0 if sqlite3.connect('$SHARED_DB').execute(\"SELECT 1 FROM agent_config WHERE agent_id='$AGENT_ID' AND key='alpaca_key'\").fetchone() else 1)" 2>/dev/null; then
     CREDS="set ✓"
   else
-    CREDS="NOT set — run: bash dashboard/setup.sh creds <KEY> <SECRET> paper"
+    CREDS="NOT set — run: bash skills/alpaca-us-stock/dashboard/setup.sh creds <KEY> <SECRET> paper"
   fi
   cat <<EOF
 

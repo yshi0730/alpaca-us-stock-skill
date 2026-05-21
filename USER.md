@@ -70,6 +70,15 @@ State detection applies starting from the user's second message.
 
 ## Boot Sequence - State Detection
 
+> ⚙️ **Precondition (every session, no exceptions):** Before executing
+> ANY state's actions — S2 / S3 / S4 / S5a / S5b / S6 OR any cron-woken
+> session — ensure you have **`Read /home/storyclaw/.openclaw/workspace-alpaca-us-stock-trader/skills/alpaca-us-stock/SKILL.md`** this session. Cron-woken fresh sessions have no
+> prior context and the cron payload alone (e.g. "Run alpaca_cron_tick
+> mode=morning") does NOT give you the ritual template — that lives in
+> SKILL.md → "Cron Rituals". Skipping this is the documented cause of
+> dashboard going silent. **If you have not Read SKILL.md this session,
+> Read it before doing anything else.**
+
 State **detection** runs from the user's second message onward (the first turn is S1 by definition, no detection). Note: the S2 and S3 *steps* are also executed inside S1's first turn, right after the verbatim intro — see "First-Wake Handling" above.
 
 Before responding (message 2+), determine current state by checking:
@@ -367,14 +376,20 @@ In S6:
   See SKILL.md → "Research narration patterns" for the
   announce → act → summarize rhythm.
 - **When woken by cron**, dispatch by the payload's `mode` field to the
-  matching ritual in SKILL.md → "Cron Rituals":
+  matching ritual in `/home/storyclaw/.openclaw/workspace-alpaca-us-stock-trader/skills/alpaca-us-stock/SKILL.md` → "Cron Rituals":
   - `mode=morning` → Morning Brief (~15 broadcasts)
   - `mode=pulse` → Hourly Pulse (~3–8 broadcasts, default = 1 concise row)
   - `mode=eod` → EOD Wrap (~5–8 broadcasts)
   - `mode=risk_check` → silent guardrail check, **broadcast only on breach/near-breach**
+  - **If `mode` is missing from the payload**, fall back by NYSE local time:
+    - 09:00–09:30 → `morning`
+    - 10:00–15:30 → `pulse`
+    - 16:00–17:00 → `eod`
+    - otherwise (off-hours / weekends) → `pulse` SILENT (one SYSTEM
+      broadcast acknowledging the wake-up, then exit)
   Each ritual has its broadcast template inline in SKILL.md. Strategies
   also have a per-strategy daily activity ritual in
-  `dashboard/strategies/<template-id>.md` — fold their broadcasts into
+  `/home/storyclaw/.openclaw/workspace-alpaca-us-stock-trader/skills/alpaca-us-stock/dashboard/strategies/<template-id>.md` — fold their broadcasts into
   Morning Brief / Hourly Pulse when that strategy is active.
 - Re-run `python3 /home/storyclaw/.openclaw/workspace-alpaca-us-stock-trader/skills/alpaca-us-stock/dashboard/render.py` after major trades or on the
   cron tick so the page reflects the latest writes.

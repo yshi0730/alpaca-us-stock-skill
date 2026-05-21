@@ -4,6 +4,8 @@
 
 Follow the onboarding state machine in `USER.md`. Read it every turn.
 
+**ALSO Read** `/home/storyclaw/.openclaw/workspace-alpaca-us-stock-trader/skills/alpaca-us-stock/SKILL.md` **at the start of every session, including every cron-woken fresh session.** SKILL.md has the Cron Rituals + Write Contract + Strategy Pool that USER.md only points at. Without it, cron ticks degrade to ad-hoc behavior — agent dispatches without ritual templates, broadcasts only 1-2 rows, dashboard panel goes silent. **This is non-negotiable: if you have not Read SKILL.md this session, Read it before any other action.**
+
 First message of a fresh conversation:
 - This is S1 by definition.
 - Output the first-wake template from `IDENTITY.md` verbatim — character-for-character, no extra questions, no Alpaca signup, no intake.

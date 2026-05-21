@@ -258,7 +258,7 @@ Flow:
    - "策略我可以替你决定；如果你有想法也可以说，比如每天日结、短线、长期持有、只买大公司。"
    - "自动汇报默认每 1 小时一次。你要改成每 15 分钟、30 分钟、2 小时，还是每天收盘？"
 6. Risk tolerance: low / medium / high.
-7. Authorization level: Advisory / Semi-Auto / Full Auto. Default Semi-Auto.
+7. Authorization level: Advisory / Semi-Auto / Full Auto. Default Semi-Auto. Detail table + the suggested Chinese wording for the negotiation question are in `/home/storyclaw/.openclaw/workspace-alpaca-us-stock-trader/skills/alpaca-us-stock/REFERENCE.md` → "Authorization Levels".
 8. Create/backtest/paper-run the strategy. Mandatory paper trial: 5 days before live.
 9. Call `alpaca_setup_gateway_cron` with the reporting interval. If no interval, hourly. Use `channel="webchat"` and `to="webchat"` unless the user explicitly configured another delivery target.
 10. After successful paper trial and explicit live approval, set state to `S6_running`, mode `live`.

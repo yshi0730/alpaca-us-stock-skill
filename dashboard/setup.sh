@@ -172,14 +172,37 @@ cmd_setup() {
     sleep 2
   fi
 
-  # 7. cloudflared: start only if not already running
+  # 7. cloudflared: start only if not already running AND tunnel actually
+  #    responds. Process-presence (pgrep) alone is not enough — a parent
+  #    SIGKILL can leave a zombie cloudflared whose WebSocket to the
+  #    Cloudflare edge is dead. That presents to the user as Error 1033
+  #    ("Cloudflare Tunnel error · unable to resolve") even though the
+  #    process is alive. So we verify via the public URL; if that fails
+  #    we kill the zombie and start fresh.
+  RESTART_CFD=1
   if pgrep -f "cloudflared tunnel run" >/dev/null 2>&1; then
-    log "cloudflared already running"
-  elif command -v cloudflared >/dev/null 2>&1 && [ -n "$TOKEN" ]; then
-    log "starting cloudflared"
-    nohup cloudflared tunnel run --token "$TOKEN" > "$CLAW/tunnel.log" 2>&1 & disown
-  else
-    log "WARN cloudflared missing or no token — page is local-only for now"
+    if [ -n "$PUBLIC_URL" ] && curl -fsS --max-time 5 "${PUBLIC_URL}/api/health" >/dev/null 2>&1; then
+      log "cloudflared already running, tunnel verified"
+      RESTART_CFD=0
+    else
+      log "cloudflared process exists but tunnel not responding (zombie / Error 1033) — killing + restarting"
+      pkill -f "cloudflared tunnel run" 2>/dev/null || true
+      sleep 1
+    fi
+  fi
+  if [ "$RESTART_CFD" = 1 ]; then
+    if command -v cloudflared >/dev/null 2>&1 && [ -n "$TOKEN" ]; then
+      log "starting cloudflared"
+      nohup cloudflared tunnel run --token "$TOKEN" > "$CLAW/tunnel.log" 2>&1 & disown
+      sleep 3
+      if [ -n "$PUBLIC_URL" ] && curl -fsS --max-time 8 "${PUBLIC_URL}/api/health" >/dev/null 2>&1; then
+        log "✓ cloudflared started, tunnel verified"
+      else
+        log "WARN cloudflared started but tunnel not yet responding (Cloudflare edge may need ~10-30s to propagate)"
+      fi
+    else
+      log "WARN cloudflared missing or no token — page is local-only for now"
+    fi
   fi
 
   # 8. first render (writes the placeholder/live page; safe without creds)

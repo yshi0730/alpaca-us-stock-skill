@@ -167,40 +167,23 @@ python3 $P/broadcast.py ERROR "🛑 KILL SWITCH: 日内 DD -3.1% 突破熔断,�
 
 ## Dashboard
 
-> ⛔ **WHICH skill — read this before doing anything dashboard-related.**
-> The platform delivers several skill folders on the device (extracted,
-> not git). Two mention "dashboard" and they are NOT the same:
+> ⛔ **WHICH skill?** Two delivered folders mention "dashboard". Only
+> ONE owns the agent's dashboard:
 >
-> - **`alpaca-us-stock-agent@alpaca-us-stock` — THIS skill.** Its
->   `dashboard/` (setup.sh, render.py, the helpers, the fixed template)
->   is the ONLY source of the dashboard the user sees.
-> - **`claw-dashboard-skill@dashboard` — a DIFFERENT skill = Layer 0
->   infra only** (a static-file hub server + cloudflare tunnel, nothing
->   more). It has **no dashboard guide and no widgets** — its `SKILL.md`
->   itself says there is nothing to build there.
->
-> **Do NOT produce this agent's dashboard from anything in
-> claw-dashboard-skill.** `setup.sh` already handles Layer 0 hub+tunnel
-> plumbing internally — you never touch claw-dashboard-skill by hand.
+> - **`alpaca-us-stock-agent@alpaca-us-stock` — THIS skill** = Layer 1.
+>   `dashboard/setup.sh`, `render.py`, the helpers, the fixed Jinja
+>   template. The only source of the dashboard the user sees.
+> - **`claw-dashboard-skill@dashboard` — DIFFERENT skill** = Layer 0
+>   infra only (a static-file hub + Cloudflare tunnel, no widgets, no
+>   guide — its SKILL.md itself says "nothing to build here").
+>   `setup.sh` brings up Layer 0 internally; **you never touch
+>   claw-dashboard-skill by hand**.
 
-This agent has a **fixed, polished dashboard page** — NOT generic
-widgets. It is rendered by **this skill's** `dashboard/render.py` and
-served (as a static page) by the Layer 0 hub.
-
-### Two layers (do not confuse)
-
-- **Layer 0 — claw-dashboard-skill** (generic, you do NOT modify it):
-  the device's ONE static-file hub + ONE cloudflare tunnel. You never
-  set this up by hand — `dashboard/setup.sh` brings it up internally
-  (clone, copy hub-app to `~/.claw/hub/`, register the device tunnel,
-  start hub + cloudflared). Shared by every dashboard on the device.
-  If any dashboard already exists on this device, Layer 0 is up — do
-  not redo.
-- **Layer 1 — this skill's `dashboard/`**: `render.py` reads live
-  Alpaca + shared.db and writes `~/.claw/hub/public/us-equity.html`;
-  Layer 0 serves it at
-  `https://device-<serial>.clawln.app/static/us-equity.html`.
-  No second server, no second tunnel — it is a sub-page on Layer 0.
+The page is a **fixed, polished Jinja template** (not widgets). Layer 1
+`render.py` reads live Alpaca + shared.db and writes
+`~/.claw/hub/public/us-equity.html`; Layer 0's hub serves it at
+`https://device-<serial>.clawln.app/static/us-equity.html`. **No second
+server, no second tunnel** — it's a sub-page on the shared Layer 0 hub.
 
 ### How to publish / refresh
 
@@ -320,14 +303,15 @@ signal fired".
 
 ### Research narration patterns (rhythm examples)
 
-Same announce → act → summarize rhythm works for any open-ended work.
-These aren't enforced helpers — they're examples of *how to talk*:
+Announce → act → summarize. Use this rhythm for any open-ended research
+between cron rituals (Morning Brief / EOD Wrap above already cover the
+scheduled cases — these examples are for ad-hoc work):
 
 ```bash
 P=/home/storyclaw/.openclaw/workspace-alpaca-us-stock-trader/skills/alpaca-us-stock/dashboard
 # News scan
 python3 $P/broadcast.py AGENT "搜索 Twitter NVDA 情绪 (24h)" --actor "[News]"
-# ... do the web_search ...
+# ... web_search ...
 python3 $P/broadcast.py AGENT "23 高赞看多 / 4 看空,~6:1 · 主要驱动是 GTC keynote" --actor "[News]" --level done
 
 # Fundamentals deep-dive
@@ -335,7 +319,7 @@ python3 $P/broadcast.py AGENT "拉取 NVDA Q1 收入 / 毛利 / 指引" --actor 
 # ... fetch + parse 10-Q ...
 python3 $P/broadcast.py AGENT "营收 26B (+87% YoY) · DC 毛利 78% · 指引上修" --actor "[Fundamentals]" --level done
 
-# Signal/anomaly detection
+# Signal / anomaly (ad-hoc, when risk_check spots something)
 python3 $P/broadcast.py WARN "TSLA 30d σ 跳到 2.4σ,接近熔断阈值" --actor "[Risk]" --level warn
 ```
 

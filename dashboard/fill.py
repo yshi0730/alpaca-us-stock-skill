@@ -102,9 +102,11 @@ def main() -> int:
                  float(fill_price) if fill_price else None, cid, AGENT_ID),
             )
             db.commit()
+            # FILL row — agent rarely calls fill.py interactively (it's a
+            # cron/poll helper), so we keep the broadcast structural.
             broadcast_row(
                 "FILL",
-                f"{symbol} 成交了 · {qty} @ ${fill_price}",
+                f"filled · {symbol} {qty} @ ${fill_price}",
                 actor="[Broker]",
                 level="done",
             )
@@ -116,15 +118,10 @@ def main() -> int:
             return 1
 
         if status in TERMINAL_FAIL:
-            status_zh = {
-                "canceled": "被撤了", "expired": "已过期", "rejected": "被拒",
-                "suspended": "被暂停", "done_for_day": "今天收市没成",
-                "replaced": "被替换",
-            }.get(status, status)
             reason = order.get("reject_reason", "")
-            msg = f"{symbol} {status_zh}"
+            msg = f"{symbol} · order {status}"
             if reason:
-                msg += f" —— {reason}"
+                msg += f" · {reason}"
             broadcast_row("ERROR", msg, actor="[Broker]", level="error")
             print(f"failed · status={status} · {symbol}", file=sys.stderr)
             return 2

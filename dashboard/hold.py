@@ -64,6 +64,9 @@ def main() -> int:
                    help="WHY you chose not to act (the agent's narrative)")
     p.add_argument("--ref-price", type=float, default=None,
                    help="optional reference price at decision time")
+    p.add_argument("--broadcast", default=None,
+                   help="HOLD row prose in user's language; falls back to "
+                        "'<sym> · HOLD · <reason>'.")
     args = p.parse_args()
 
     symbol = args.symbol.upper()
@@ -78,11 +81,8 @@ def main() -> int:
     )
     db.commit(); db.close()
 
-    broadcast_row(
-        "HOLD",
-        f"{symbol} 暂不动 —— {args.reason}",
-        actor=f"[{args.strategy}]",
-    )
+    msg = args.broadcast or f"{symbol} · HOLD · {args.reason}"
+    broadcast_row("HOLD", msg, actor=f"[{args.strategy}]")
 
     print(f"✓ HOLD recorded for {symbol} (strategy={args.strategy})")
     return 0

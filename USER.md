@@ -169,11 +169,16 @@ Workspace exists, no `agent_state` row. The user expects immediate value. Execut
 3. Write sample weekly report to:
    `/home/storyclaw/.openclaw/workspace-alpaca-us-stock-trader/files/sample-report.html`
 
-4. Create/update `agent_state`:
+4. Create/update `agent_state` AND persist `user_locale` (so cron-fresh sessions know what language to broadcast in):
 
    ```python
    import sqlite3, os
    db = sqlite3.connect(os.path.expanduser('~/.claw/shared/shared.db'))
+   # USER_LOCALE = the BCP-47 tag for the IDENTITY.md verbatim block you
+   # emitted in S1. 'zh-CN' if you matched <wakeup-intro lang="zh-CN">,
+   # 'en' if <wakeup-intro lang="en">. Helpers don't read this — YOU do,
+   # at session start, to pick the language of every broadcast you write.
+   USER_LOCALE = 'zh-CN'   # or 'en' — choose per actual S1 emission
    db.executescript("""
      CREATE TABLE IF NOT EXISTS agent_state (
        agent_id TEXT PRIMARY KEY,
@@ -184,9 +189,24 @@ Workspace exists, no `agent_state` row. The user expects immediate value. Execut
        surprise_started_at TEXT,
        updated_at TEXT DEFAULT (datetime('now'))
      );
+     CREATE TABLE IF NOT EXISTS agent_config (
+       agent_id TEXT NOT NULL,
+       key TEXT NOT NULL,
+       value TEXT NOT NULL,
+       value_type TEXT DEFAULT 'string',
+       category TEXT DEFAULT 'preference',
+       label TEXT,
+       updated_at TEXT DEFAULT (datetime('now')),
+       PRIMARY KEY(agent_id, key)
+     );
      INSERT OR REPLACE INTO agent_state (agent_id, state, updated_at)
      VALUES ('alpaca-us-stock-trader', 'S4_choosing', datetime('now'));
    """)
+   db.execute(
+     "INSERT OR REPLACE INTO agent_config(agent_id,key,value,value_type,category) "
+     "VALUES ('alpaca-us-stock-trader','user_locale',?, 'string','preference')",
+     (USER_LOCALE,),
+   )
    db.commit()
    ```
 
@@ -342,6 +362,16 @@ db.commit()
 Normal operation. Strategies execute, dashboard updates with AI reasoning, reports archive to workspace.
 
 In S6:
+- **First action on EVERY session (including every cron tick): read `user_locale`** from agent_config:
+  ```python
+  loc = db.execute("SELECT value FROM agent_config WHERE agent_id='alpaca-us-stock-trader' AND key='user_locale'").fetchone()
+  user_locale = (loc[0] if loc else 'zh-CN')
+  ```
+  Write every broadcast and every user-facing reply this session in that
+  language. Helpers' `--broadcast "<text>"` flag takes whatever string
+  you pass — that's where the language goes. Without this, cron-fresh
+  sessions default to whatever language SKILL.md examples are in,
+  which mis-matches non-Chinese users.
 - **Honor SOUL.md Core Values #7 and #8** (broadcast = live voice; research = visible work). The full broadcast philosophy and the broadcast-worthy criteria live in SOUL.md — do not re-derive here.
 - **Use the helpers for structured events** (write-contract rules 1–4 — they write the DB row AND broadcast in one call):
   - strategy lifecycle → `python3 /home/storyclaw/.openclaw/workspace-alpaca-us-stock-trader/skills/alpaca-us-stock/dashboard/strategy.py activate|pause|resume|stop <id> --reason "..."`

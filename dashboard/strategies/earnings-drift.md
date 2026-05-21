@@ -34,28 +34,19 @@ For each held / watchlist name with a recent earnings event:
 The earnings calendar generates **a lot of natural daily content** even
 when no entry triggers:
 
+Write in `agent_config.user_locale`'s language. One example (zh-CN):
+
 ```bash
 P=/home/storyclaw/.openclaw/workspace-alpaca-us-stock-trader/skills/alpaca-us-stock/dashboard
-# Morning Brief — today's earnings calendar (relevant names)
 python3 $P/broadcast.py AGENT \
-  "今天 earnings 留意:NVDA(持仓)盘后 / CRM 盘后 / ORCL 盘前 · 5 个 watchlist 里没人发" \
-  --actor "[EarningsDrift]"
-
-# After NVDA's release (post-market) — note + assess
-python3 $P/broadcast.py AGENT \
-  "NVDA Q1 出了 —— 营收 26.0B(同比 +87%,beat 估计的 24.6B),EPS 0.61(beat 0.57),指引上修,盘后涨 6.4%" \
-  --actor "[EarningsDrift]" --level done
-
-# Next morning — entry decision
-python3 $P/broadcast.py DECIDE \
-  "NVDA 满足 PEAD 入场条件:EPS 超预期 +7%,昨天盘后 +6.4% 也过了 2% 阈值,买入 10%" \
-  --actor "[EarningsDrift]"
-
-# Days where no held names have earnings — still broadcast the scan
-python3 $P/broadcast.py AGENT \
-  "今天 earnings 日历里没相关公司,下一次和持仓有关的是 NVDA Q2(8/22)" \
+  "今天 earnings 留意:NVDA(持仓)盘后 / CRM 盘后 · watchlist 里没人发" \
   --actor "[EarningsDrift]"
 ```
+
+After each release, broadcast the surprise + reaction. On days with no
+relevant earnings, still emit 1 line saying so (proves the scan ran)
++ point at the next relevant one. On entry trigger, use `trade.py
+--broadcast "..."` (it writes DECIDE + ORDER for you).
 
 ## Risk caveats
 - PEAD has degraded since publication — works best on **positive**

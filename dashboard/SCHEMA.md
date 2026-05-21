@@ -127,6 +127,12 @@ KV-shaped, scoped by `agent_id`, categorized so the dashboard filters to `catego
 | `trading_mode` | string | `paper` |
 | `default_authorization_level` | number | 1 |
 
+**category = `preference`**:
+
+| key | value_type | default | notes |
+|-----|-----------|---------|-------|
+| `user_locale` | string | `zh-CN` | BCP-47-like (`zh-CN` / `en` / etc.). **Agent writes this at S1** (the language of the verbatim intro it emitted). **Agent reads it at the start of every session, including every cron tick**, and writes all broadcasts / user-facing replies in that language. Helpers do NOT read this (they're locale-neutral) — the agent supplies `--broadcast "<text in that language>"` when calling a helper. |
+
 ---
 
 ## Table 4 — `ai_broadcast`

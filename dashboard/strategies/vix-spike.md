@@ -30,21 +30,18 @@ This strategy spends most days waiting. The Morning Brief and Hourly
 Pulse should still broadcast VIX state — that's the visible "I'm
 watching for the regime":
 
+Write in `agent_config.user_locale`'s language. One example for the
+dormant case (zh-CN):
+
 ```bash
 P=/home/storyclaw/.openclaw/workspace-alpaca-us-stock-trader/skills/alpaca-us-stock/dashboard
-# Morning Brief — VIX state classification
 python3 $P/broadcast.py AGENT \
-  "VIX 看了眼 17.4,低波动区(还没到 25 触发线),SPY 这 5 天 +0.8%,没事干,等" \
-  --actor "[VIXSpike]"
-# Hourly Pulse — only when VIX shifts state class
-python3 $P/broadcast.py WARN \
-  "VIX 跳到 22.8(半小时内 +18%),离 25 触发线不远了" \
-  --actor "[VIXSpike]" --level warn
-# Trigger
-python3 $P/broadcast.py DECIDE \
-  "条件齐了 —— VIX 28.4 + SPY 两天 -3.6%,准备买入 SPY 20% 仓位" \
+  "VIX 看了眼 17.4,低波动区(还没到 25 触发线),等" \
   --actor "[VIXSpike]"
 ```
+
+When VIX shifts state class or triggers, escalate to `WARN` or
+`DECIDE` accordingly + use `trade.py` for the entry.
 
 ## Risk caveats
 - **NEVER use VIX short instruments** (XIV/SVXY/VXX short) — 2018-02-05

@@ -33,23 +33,18 @@ top 2; buy any new entrant.
 Even though rebalance is monthly, the strategy provides daily research
 content — sector relative strength shifts every day:
 
+Write in `agent_config.user_locale`'s language. One example (zh-CN):
+
 ```bash
 P=/home/storyclaw/.openclaw/workspace-alpaca-us-stock-trader/skills/alpaca-us-stock/dashboard
-# Daily Morning Brief — sector ranking refresh
 python3 $P/broadcast.py AGENT \
-  "板块 3 个月动量排了一下:XLK 领先 (+8.4),XLF / XLV / XLI 紧随,XLP / XLU / XLE 在下半区" \
-  --actor "[SectorRotation]"
-
-# Weekly (Wed) — preview of upcoming rebalance if still N days away
-python3 $P/broadcast.py AGENT \
-  "距月末调仓还有 9 天 —— 当前持仓 XLK / XLF,XLV 在候补,差 1.9 个点" \
-  --actor "[SectorRotation]"
-
-# Rebalance day
-python3 $P/broadcast.py DECIDE \
-  "月度调仓:XLF 跌出 top 2,换 XLV 进来 —— 卖出 XLF 30%,买入 XLV 30%" \
+  "板块 3M 动量排了一下:XLK 领先(+8.4),XLF/XLV/XLI 紧随,XLE 垫底(-3.2)" \
   --actor "[SectorRotation]"
 ```
+
+Add a rebalance preview row on Wed (~9 days before month-end). On
+rebalance day use `strategy.py` (for state) + `trade.py` (for the
+ETF buy/sell pair, one DECIDE row each).
 
 ## Risk caveats
 - Sector ETFs in concentrated baskets (XLE = 25+ energy names, XLF =

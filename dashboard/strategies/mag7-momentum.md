@@ -28,17 +28,16 @@ fell out of top 3; buy any new entrant.
 Even when not rebalancing, every weekday Morning Brief should broadcast
 the standings — this is the most visible "thinking" surface:
 
+Write in `agent_config.user_locale`'s language. One example (zh-CN):
+
 ```bash
 P=/home/storyclaw/.openclaw/workspace-alpaca-us-stock-trader/skills/alpaca-us-stock/dashboard
-# Daily ranking refresh — single row, conversational
 python3 $P/broadcast.py AGENT \
-  "Mag7 4 周动量排了一下:NVDA 第一(+14.2),META 第二(+9.1),AAPL 紧跟(+7.3),后面是 MSFT / GOOGL / AMZN,TSLA 最弱(-2.4)" \
-  --actor "[Mag7Rotation]"
-# On Friday: Monday rebalance preview
-python3 $P/broadcast.py AGENT \
-  "周一调仓预告 —— NVDA / META / AAPL 仍是 top 3,持仓不动" \
+  "Mag7 4 周动量排了一下:NVDA 第一(+14.2),META / AAPL 紧跟,TSLA 最弱(-2.4)" \
   --actor "[Mag7Rotation]"
 ```
+
+On Friday, follow up with a 1-line Monday-rebalance preview.
 
 ## Risk caveats
 - "Mag7" is a 2023+ post-hoc concept; backtests pre-2020 are mostly

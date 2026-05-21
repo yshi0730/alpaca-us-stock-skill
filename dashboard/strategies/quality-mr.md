@@ -30,25 +30,19 @@ For each name in the universe, **buy 10% of equity** when:
 
 Every weekday Morning Brief, scan all 10 names and broadcast:
 
+Write in `agent_config.user_locale`'s language. One example (zh-CN);
+when a name is near threshold, emit 1 line per such name + 1 closing
+summary:
+
 ```bash
 P=/home/storyclaw/.openclaw/workspace-alpaca-us-stock-trader/skills/alpaca-us-stock/dashboard
-# 1 row per name approaching threshold
 python3 $P/broadcast.py AGENT \
-  "AAPL RSI 跑到 34.2,逼近 30 的入场阈值;价 $184.20 已经在 50DMA 下面" \
-  --actor "[QualityMR-Scan]"
-# summary row at the end
-python3 $P/broadcast.py AGENT \
-  "QualityMR 扫了一圈:0 个触发,3 个接近阈值,7 个中性" \
+  "QualityMR 扫了一圈 10 只:AAPL RSI 34.2 逼近 30 入场线,其余中性" \
   --actor "[QualityMR-Scan]" --level done
 ```
 
-For HELD positions, also broadcast RSI progress toward exit threshold:
-
-```bash
-python3 $P/broadcast.py AGENT \
-  "持仓里 MSFT 当时入场 RSI 28,现在 41.5,差不多接近 50 的出场线了" \
-  --actor "[QualityMR]"
-```
+For held positions, similarly broadcast RSI progress toward the exit
+threshold when it gets close.
 
 ## Risk caveats
 - Catching falling knives if regime changes (bear market → entries pile

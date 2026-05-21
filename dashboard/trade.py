@@ -116,18 +116,17 @@ def main() -> int:
     p.add_argument("--action", default=None,
                    choices=["buy", "sell", "add", "reduce", "close"],
                    help="overrides feed action label (e.g. 'reduce' instead of 'sell')")
+    p.add_argument("--broadcast", default=None,
+                   help="DECIDE row prose in the user's language (read "
+                        "agent_config.user_locale). Falls back to neutral "
+                        "structural form '<sym> · <action> <qty> · <reason>'. "
+                        "ORDER + ERROR rows are always neutral structural.")
     args = p.parse_args()
 
     action = args.action or args.side
     symbol = args.symbol.upper()
     cid = f"alpaca-{args.strategy}-{uuid.uuid4().hex[:8]}"
     reasoning_id = uuid.uuid4().hex
-
-    # action verb in Chinese for the broadcast voice
-    action_zh = {
-        "buy": "买入", "add": "加仓",
-        "sell": "卖出", "reduce": "减仓", "close": "平仓",
-    }.get(action, action)
 
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     db = sqlite3.connect(str(DB_PATH))
@@ -145,12 +144,11 @@ def main() -> int:
     )
     db.commit()
 
-    # 2. DECIDE broadcast (narrative — the user sees the WHY in real time)
-    broadcast_row(
-        "DECIDE",
-        f"准备{action_zh} {symbol} {args.qty:g} —— {args.reason}",
-        actor=f"[{args.strategy}]",
-    )
+    # 2. DECIDE broadcast — agent supplies the prose via --broadcast (in the
+    # user's language); fall back to a neutral structural form so the row is
+    # never empty even if the agent forgot.
+    decide_msg = args.broadcast or f"{symbol} · {action} {args.qty:g} · {args.reason}"
+    broadcast_row("DECIDE", decide_msg, actor=f"[{args.strategy}]")
 
     # 3. place_order via AlpacaClient (canonical write path)
     key, sec, paper = _read_creds()
@@ -168,9 +166,10 @@ def main() -> int:
                 extended_hours=args.extended_hours,
             )
     except AlpacaError as e:
+        # ERROR row is always structural / language-neutral.
         broadcast_row(
             "ERROR",
-            f"{symbol} 下单失败 —— Alpaca 返回 HTTP {e.status}",
+            f"{symbol} · order rejected · Alpaca HTTP {e.status}",
             actor="[Broker]",
             level="error",
         )
@@ -186,16 +185,18 @@ def main() -> int:
     )
     db.commit(); db.close()
 
-    # 5. ORDER broadcast (the order is out the door)
+    # 5. ORDER broadcast — structural confirmation (always language-neutral).
+    # The narrative WHY already went out in DECIDE; this is the technical
+    # "order is in flight" beat.
     if args.limit_price is not None:
-        px_phrase = f"限价 {args.limit_price:g}"
+        px_phrase = f"limit {args.limit_price:g}"
     elif args.type_ == "market":
-        px_phrase = "市价"
+        px_phrase = "market"
     else:
         px_phrase = args.type_
     broadcast_row(
         "ORDER",
-        f"单已发出 · {action_zh} {symbol} {args.qty:g},{px_phrase}",
+        f"order submitted · {symbol} {action} {args.qty:g} · {px_phrase}",
         actor="[Trader]",
     )
 

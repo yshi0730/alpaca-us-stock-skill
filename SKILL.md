@@ -94,73 +94,61 @@ spawns a fresh agent session via `alpaca_cron_tick`. The cron payload's
 table + the mode-missing time-of-day fallback.)
 
 > **Rule:** every ritual writes broadcast rows even when there is no
-> trade. "Today nothing happened" is a failure signal; the process must
-> always be visible. Use `dashboard/broadcast.py` (open-ended) for the
-> ritual narrative; use the structured helpers (`strategy.py / trade.py
-> / fill.py / hold.py`) when a ritual actually triggers an action.
+> trade. "Today nothing happened" is a failure signal — the process
+> must always be visible. Use `dashboard/broadcast.py` for ritual
+> narrative; the structured helpers (`strategy.py / trade.py / fill.py
+> / hold.py`) for actions.
+>
+> **Language:** examples below are in zh-CN. **Read `agent_config.
+> user_locale` at session start and write all broadcasts in that
+> language.** `broadcast.py` is locale-neutral — its `msg` argument is
+> the text you supply, in any language.
 
 ### `mode=morning` — Morning Brief (09:00 ET weekdays, ~15 broadcasts)
 
-Before market open, scan & broadcast in roughly this order:
+Rhythm: opener (SYSTEM) → today's macro (AGENT) → one row per held
+name's overnight news (AGENT) → active-strategy ranking refresh
+(AGENT) → pre-market movers (AGENT) → done (SYSTEM).
 
 ```bash
 P=/home/storyclaw/.openclaw/workspace-alpaca-us-stock-trader/skills/alpaca-us-stock/dashboard
-# 1. session open
-python3 $P/broadcast.py SYSTEM "盘前 09:00 准点 · 距开盘 30 分钟,我先看一圈" --actor ""
-# 2. macro (Fed / CPI / NFP / earnings calendar headline)
-python3 $P/broadcast.py AGENT "今天宏观留意:FOMC 会议纪要 14:00 公布,NVDA 盘后公布财报" --actor "[Macro]"
-# 3. per-holding overnight news scan (one row per holding)
-python3 $P/broadcast.py AGENT "NVDA 昨夜 GTC 主题演讲之后盘后 +1.2%,2 家投行上调目标价" --actor "[News:NVDA]"
-python3 $P/broadcast.py AGENT "AAPL 隔夜没大事,中国出货数据偏正面" --actor "[News:AAPL]"
-# ... 1 row per holding
-# 4. active strategy daily ritual (each strategy's detail file specifies what)
-python3 $P/broadcast.py AGENT "Mag7 4 周动量排名扫了一遍,NVDA / META / AAPL 仍是 top 3,持仓不动" --actor "[Mag7Rotation]"
-# 5. pre-market movers (if any held / watchlist)
-python3 $P/broadcast.py AGENT "盘前关注:TSLA +2.4%(没明显新闻),META -1.1%(大行下调)" --actor "[PreMarket]"
-# 6. done
+python3 $P/broadcast.py SYSTEM "盘前 09:00 准点,我先看一圈" --actor ""
+python3 $P/broadcast.py AGENT  "NVDA 昨夜 GTC 主题演讲后盘后 +1.2%,2 家投行上调目标价" --actor "[News:NVDA]"
+python3 $P/broadcast.py AGENT  "Mag7 4 周动量排名扫了一遍,top 3 没变,持仓不动" --actor "[Mag7Rotation]"
 python3 $P/broadcast.py SYSTEM "Morning Brief 看完了,等开盘" --actor "" --level done
 ```
 
-### `mode=pulse` — Hourly Pulse (10:00–15:00 ET on the hour, weekdays, ~3-8 broadcasts/tick)
+### `mode=pulse` — Hourly Pulse (10:00–15:00 ET on the hour, ~1-5 broadcasts/tick)
 
-Quick state check. **Default to ONE concise summary row**; expand only
-when something changes:
+**Default = ONE concise summary row.** Expand to 3-5 only when
+something changes. Don't fill space.
 
 ```bash
-P=/home/storyclaw/.openclaw/workspace-alpaca-us-stock-trader/skills/alpaca-us-stock/dashboard
-# Default — uneventful tick: 1 row only
-python3 $P/broadcast.py SYSTEM "11:00 看了一眼 · SPY +0.3% / VIX 17.4,7 个持仓都离止损线还远,没新信号" --actor ""
-
-# When something IS changing:
-python3 $P/broadcast.py AGENT "Mag7 排名变了 —— NVDA 仍稳第一,但 META 掉到第 4,周一可能要把 AMZN 换进来" --actor "[Mag7Rotation]"
-python3 $P/broadcast.py WARN "TSLA 跌 2.1%,离 3% 止损线还剩 0.9% 余地,我盯着" --actor "[Risk]" --level warn
+# Uneventful tick (the typical case):
+python3 $P/broadcast.py SYSTEM "11:00 看了一眼 · SPY +0.3% / VIX 17.4,持仓都还离止损远" --actor ""
+# Event:
+python3 $P/broadcast.py WARN   "TSLA 跌 2.1%,离 3% 止损线还剩 0.9% 余地,我盯着" --actor "[Risk]" --level warn
 ```
 
 ### `mode=eod` — EOD Wrap (16:30 ET weekdays, ~5-8 broadcasts)
 
-After close, summarize the day + plan tomorrow:
+Rhythm: open (SYSTEM) → today's P&L attribution (AGENT) → tomorrow's
+prep (AGENT) → done (SYSTEM).
 
 ```bash
-P=/home/storyclaw/.openclaw/workspace-alpaca-us-stock-trader/skills/alpaca-us-stock/dashboard
-python3 $P/broadcast.py SYSTEM "收盘了 · SPY 今天 +0.42%,VIX 收 16.8,先复盘" --actor ""
-python3 $P/broadcast.py AGENT "今天总账:+\$842 (+0.66%),做了 3 笔(NVDA 加仓 / META 减仓 / SPY 没动)" --actor "[EOD]"
-python3 $P/broadcast.py AGENT "贡献最大的是 NVDA(+\$520),拖后腿的是 TSLA(-\$130)" --actor "[EOD]"
-python3 $P/broadcast.py AGENT "明天要留意:CRM 盘后公布财报 · 持仓里 META 已接近 +18% 止盈线" --actor "[EOD]"
-python3 $P/broadcast.py SYSTEM "今天就到这,下班 · 明早 09:00 morning brief 见" --actor "" --level done
+python3 $P/broadcast.py SYSTEM "收盘 · SPY +0.42% / VIX 16.8,先复盘" --actor ""
+python3 $P/broadcast.py AGENT  "今天 +\$842 (+0.66%),做了 3 笔(NVDA 加仓 / META 减仓 / SPY 没动)" --actor "[EOD]"
+python3 $P/broadcast.py SYSTEM "今天就到这,下班 · 明早 09:00 见" --actor "" --level done
 ```
 
 ### `mode=risk_check` — Silent Guardrail Check (every 1 min during market hours)
 
-**Default = silent**. Run all guardrail checks (per-position stop
-proximity, daily DD, max trades, etc.). Broadcast **only on breach or
-near-breach** (within 1% of threshold). Otherwise no broadcast — this
-tick fires 390 times/day, narration would be noise.
+**Default = silent**. Broadcast ONLY on breach or near-breach (within
+1% of threshold). This fires 390 times/day; narrating every tick = noise.
 
 ```bash
-# On breach only
-python3 $P/broadcast.py WARN "护栏要响了 —— 日内回撤 -2.7%,还差 0.3% 就触发熔断" --actor "[Risk]" --level warn
-python3 $P/broadcast.py ERROR "🛑 熔断了 —— 日内回撤 -3.1% 突破上限,所有自动策略已停" --actor "[Risk]" --level error
-# Silent ticks: do NOT broadcast. Just return.
+python3 $P/broadcast.py WARN  "护栏要响了 —— 日内回撤 -2.7%,还差 0.3% 触发熔断" --actor "[Risk]" --level warn
+python3 $P/broadcast.py ERROR "🛑 熔断了 —— 日内 -3.1% 突破上限,所有自动策略已停" --actor "[Risk]" --level error
 ```
 
 ---
@@ -301,27 +289,23 @@ Reasoning text is the product differentiator: write WHY with numbers
 (RSI 78, 10d +24% > 2σ, edge +6pp, stop −5%), never "bought because
 signal fired".
 
-### Research narration patterns (rhythm examples)
+### Research narration patterns
 
-Announce → act → summarize. Use this rhythm for any open-ended research
-between cron rituals (Morning Brief / EOD Wrap above already cover the
-scheduled cases — these examples are for ad-hoc work):
+**Announce → act → summarize.** Use this rhythm for any open-ended
+work between cron rituals. One concrete example (zh-CN; use the user's
+locale):
 
 ```bash
 P=/home/storyclaw/.openclaw/workspace-alpaca-us-stock-trader/skills/alpaca-us-stock/dashboard
-# News scan
-python3 $P/broadcast.py AGENT "去 Twitter 扫一下 NVDA 最近 24h 的情绪" --actor "[News]"
+python3 $P/broadcast.py AGENT "去 Twitter 扫一下 NVDA 最近 24h 情绪"   --actor "[News]"
 # ... web_search ...
-python3 $P/broadcast.py AGENT "看完了 · 23 条高赞看多 / 4 条看空,大约 6:1 偏多,主要是 GTC keynote 带的" --actor "[News]" --level done
-
-# Fundamentals deep-dive
-python3 $P/broadcast.py AGENT "翻一下 NVDA Q1 财报 —— 收入 / 毛利 / 指引" --actor "[Fundamentals]"
-# ... fetch + parse 10-Q ...
-python3 $P/broadcast.py AGENT "拉完了 · 营收 26B (同比 +87%),数据中心毛利 78%,指引继续上修" --actor "[Fundamentals]" --level done
-
-# Signal / anomaly (ad-hoc, when risk_check spots something)
-python3 $P/broadcast.py WARN "TSLA 30 天波动率跳到 2.4σ,逼近熔断阈值,我盯着" --actor "[Risk]" --level warn
+python3 $P/broadcast.py AGENT "看完 · 高赞 6:1 偏多,GTC keynote 带的"  --actor "[News]" --level done
 ```
+
+Same shape works for fundamentals, news, sentiment, screener scans,
+anomaly observations. **Always two rows minimum: one announcing intent,
+one with the finding.** When the finding has a number / risk, use
+appropriate TAG (`WARN` / `ERROR`).
 
 ### Setup values
 

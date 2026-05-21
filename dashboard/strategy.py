@@ -82,12 +82,8 @@ def cmd_activate(args: argparse.Namespace) -> int:
         ),
     )
     db.commit(); db.close()
-    _broadcast(
-        "AGENT",
-        f"启动了 {args.name} 策略 —— {args.reason}",
-        actor="[StrategyManager]",
-        level="done",
-    )
+    msg = args.broadcast or f"{args.name} · activated · {args.reason}"
+    _broadcast("AGENT", msg, actor="[StrategyManager]", level="done")
     print(f"✓ activated {args.id} ({args.name})")
     return 0
 
@@ -109,12 +105,8 @@ def cmd_pause(args: argparse.Namespace) -> int:
         (f"paused · {args.reason}", args.id, AGENT_ID),
     )
     db.commit(); db.close()
-    _broadcast(
-        "WARN",
-        f"先停了 {name} —— {args.reason}",
-        actor="[StrategyManager]",
-        level="warn",
-    )
+    msg = args.broadcast or f"{name} · paused · {args.reason}"
+    _broadcast("WARN", msg, actor="[StrategyManager]", level="warn")
     print(f"⏸ paused {args.id}")
     return 0
 
@@ -136,12 +128,8 @@ def cmd_resume(args: argparse.Namespace) -> int:
         (f"resumed · {args.reason}", args.id, AGENT_ID),
     )
     db.commit(); db.close()
-    _broadcast(
-        "AGENT",
-        f"{name} 重新跑起来 —— {args.reason}",
-        actor="[StrategyManager]",
-        level="done",
-    )
+    msg = args.broadcast or f"{name} · resumed · {args.reason}"
+    _broadcast("AGENT", msg, actor="[StrategyManager]", level="done")
     print(f"▶ resumed {args.id}")
     return 0
 
@@ -163,11 +151,8 @@ def cmd_stop(args: argparse.Namespace) -> int:
         (f"stopped · {args.reason}", args.id, AGENT_ID),
     )
     db.commit(); db.close()
-    _broadcast(
-        "AGENT",
-        f"{name} 已停止 —— {args.reason}",
-        actor="[StrategyManager]",
-    )
+    msg = args.broadcast or f"{name} · stopped · {args.reason}"
+    _broadcast("AGENT", msg, actor="[StrategyManager]")
     print(f"⏹ stopped {args.id}")
     return 0
 
@@ -187,6 +172,10 @@ def main() -> int:
     a.add_argument("--params", default="{}", help='strategy params JSON (default "{}")')
     a.add_argument("--authorization-level", type=int, default=1,
                    help="0 advisory / 1 semi-auto (default) / 2 full-auto")
+    a.add_argument("--broadcast", default=None,
+                   help="optional broadcast text in the user's language (see "
+                        "agent_config.user_locale). Falls back to a neutral "
+                        "ASCII form: '<name> · activated · <reason>'.")
     a.set_defaults(fn=cmd_activate)
 
     for name, fn, help_ in (
@@ -197,6 +186,9 @@ def main() -> int:
         s = sub.add_parser(name, help=help_)
         s.add_argument("id", help="strategy slug")
         s.add_argument("--reason", required=True, help="WHY (one short sentence)")
+        s.add_argument("--broadcast", default=None,
+                       help="optional broadcast text in the user's language; "
+                            "falls back to '<name> · <action> · <reason>'.")
         s.set_defaults(fn=fn)
 
     args = p.parse_args()

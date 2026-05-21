@@ -15,35 +15,23 @@ DB row AND broadcast in one call so you cannot forget either half:
   - `dashboard/fill.py`  — Rule 3 (FILL backfill)
   - `dashboard/hold.py`  — Rule 4 (HOLD)
 
-Voice rule: speak, don't log. Use Chinese verbs (准备 / 启动 / 看完了
-/ 成交了), wrap numbers in language, don't parade fields with `·`. See
-SOUL.md Core Value #7 for the full voice rules.
+Voice rule: speak, don't log. **Use the user's language**, which the
+agent reads from `agent_config.user_locale` at session start. This
+script is locale-neutral — whatever string you pass in `msg` goes in
+verbatim. See SOUL.md Core Value #7 for full voice rules.
 
-Examples (open-ended; for structured events see the helpers above):
+Examples (open-ended events; structured events go through the dedicated
+helpers — `strategy.py / trade.py / fill.py / hold.py`). zh-CN examples
+shown; substitute the user's locale:
 
     P=/home/storyclaw/.openclaw/workspace-alpaca-us-stock-trader/skills/alpaca-us-stock/dashboard
-
-    # Research narration — announce → act → summarize
-    python3 $P/broadcast.py AGENT  "去 Twitter 扫一下 NVDA 最近 24h 的情绪"  --actor "[News]"
-    python3 $P/broadcast.py AGENT  "看完了 · 23 条高赞看多 / 4 条看空"        --actor "[News]"   --level done
-
-    # Universe scan
-    python3 $P/broadcast.py AGENT  "扫一遍 SP500 候选 (487 支)"               --actor "[Screener]"
-    python3 $P/broadcast.py AGENT  "筛选完了,12 支符合条件"                   --actor "[Screener]" --level done
-
-    # Risk / anomaly
-    python3 $P/broadcast.py WARN   "TSLA 波动率跳到 2.4σ,我先把止损线收到 -1.8%" --actor "[Risk]"   --level warn
-    python3 $P/broadcast.py ERROR  "Alpaca API 超时,5 秒后我再试一次"           --actor "[System]" --level error
-
-    # System / idle
-    python3 $P/broadcast.py SYSTEM "开盘了 · NYSE 常规交易开始"                --actor ""
-    python3 $P/broadcast.py SYSTEM "10:32 没事干,先眯一下,11:00 再看"          --actor ""
-
-    # User-facing
-    python3 $P/broadcast.py USER   "用户问:现在加仓 NVDA 合适吗"               --actor ""
-
-    # Reporting
-    python3 $P/broadcast.py AGENT  "小时汇报写完了,已经推到 WebChat"           --actor "[Report]"  --level done
+    # Announce → summarize
+    python3 $P/broadcast.py AGENT  "去 Twitter 扫一下 NVDA 24h 情绪"  --actor "[News]"
+    python3 $P/broadcast.py AGENT  "高赞 6:1 偏多,GTC keynote 带的"   --actor "[News]" --level done
+    # Anomaly
+    python3 $P/broadcast.py WARN   "TSLA 30d σ 跳到 2.4σ,我盯着"      --actor "[Risk]" --level warn
+    # System
+    python3 $P/broadcast.py SYSTEM "10:32 没事干,先眯一下"             --actor ""
 
 TAG taxonomy (case-insensitive on input, stored uppercase):
     SYSTEM   — infra events the agent did NOT do (market open/close, latency, cron tick)

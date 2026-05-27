@@ -168,8 +168,15 @@ cmd_setup() {
     timeout 120 python3 -m pip install --quiet -r "$SCRIPT_DIR/requirements.txt" || log "WARN dashboard pip"
   fi
 
-  # 4. dirs + hub-app (cp refreshes hub to the cloned version)
+  # 4. dirs + hub-app (cp refreshes hub to the cloned version).
+  #    Pre-create an empty shared.db so render.py at step 8 doesn't
+  #    trip its "not initialized" fallback (which wrote a misleading
+  #    page saying setup.sh hadn't run — exactly when it just had).
+  #    With the file present, render.py falls through to the "no
+  #    creds → connect Alpaca" page, which is the correct initial
+  #    state after setup.sh and before §S5.
   mkdir -p "$HUB" "$CLAW/config" "$(dirname "$SHARED_DB")" "$PUBLIC"
+  touch "$SHARED_DB"
   cp -R "$DASH_SKILL/hub-app/." "$HUB/"
   log "hub-app installed at $HUB"
 

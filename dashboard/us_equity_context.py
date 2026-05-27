@@ -24,6 +24,31 @@ import portfolio_metrics as M
 AGENT_ID = "alpaca-us-stock-trader"
 SKILL_VERSION = "alpaca-us-stock-agent v0.3.0"
 
+# Display all dashboard timestamps in US/Eastern. This is a US-stock
+# agent: market hours, earnings calendars, cron rituals, and the
+# broadcast prose ("盘前 09:00 准点", "EOD Wrap 16:30 ET") all reference
+# ET. Showing broadcasts in UTC or in whatever the rendering host's
+# local timezone happens to be forces the user to mentally convert.
+try:
+    from zoneinfo import ZoneInfo  # Python 3.9+ stdlib
+    ET_TZ: Optional[ZoneInfo] = ZoneInfo("America/New_York")
+except Exception:  # noqa: BLE001
+    ET_TZ = None
+
+
+def _utc_to_et_time(ts_raw: str) -> str:
+    """SQLite `datetime('now')` (UTC, 'YYYY-MM-DD HH:MM:SS') → ET 'HH:MM:SS'.
+    Falls back to raw extraction if parsing or zoneinfo fails."""
+    if not ts_raw or ts_raw == "—":
+        return ts_raw or "—"
+    if ET_TZ is not None:
+        try:
+            dt = datetime.fromisoformat(ts_raw).replace(tzinfo=timezone.utc)
+            return dt.astimezone(ET_TZ).strftime("%H:%M:%S")
+        except (ValueError, TypeError):
+            pass
+    return ts_raw.split(" ")[-1][:8] if " " in ts_raw else ts_raw[:8]
+
 # guardrail defaults (mirror US-EQUITY-DASHBOARD-SCHEMA.md)
 _GUARDRAIL_DEFAULTS = {
     "max_position_pct": ("10", "单仓上限", "≤ {v}%"),
@@ -177,7 +202,7 @@ def _broadcast(db: sqlite3.Connection, agent_id: str, limit: int = 40) -> list[d
     out: list[dict] = []
     for r in reversed(rows):  # oldest at top, newest at bottom
         ts_raw = (r["ts"] or "") if isinstance(r, sqlite3.Row) else (r.get("ts") or "")
-        ts_short = ts_raw.split(" ")[-1][:8] if " " in ts_raw else ts_raw[:8]
+        ts_short = _utc_to_et_time(ts_raw)
         tag = ((r["tag"] if isinstance(r, sqlite3.Row) else r.get("tag")) or "AGENT").upper()
         level = ((r["level"] if isinstance(r, sqlite3.Row) else r.get("level")) or "info").lower()
         if tag not in {"SYSTEM","USER","AGENT","DECIDE","ORDER","FILL","HOLD","WARN","ERROR"}:
@@ -232,7 +257,10 @@ def _meta(ac: AlpacaClient, snap: dict, cfg: dict, latency_ms: int) -> dict:
     except Exception:  # noqa: BLE001
         is_open, nxt, label = False, None, "NYSE · status unavailable"
     auth = int(float(cfg.get("default_authorization_level", 1)))
-    now = datetime.now(timezone.utc).astimezone()
+    now_utc = datetime.now(timezone.utc)
+    # Display in ET to match every other dashboard timestamp.
+    now_display = now_utc.astimezone(ET_TZ) if ET_TZ is not None else now_utc
+    tz_label = "ET" if ET_TZ is not None else "UTC"
     return {
         "agent_id": AGENT_ID,
         "account_number": snap.get("account_number") or "—",
@@ -241,8 +269,8 @@ def _meta(ac: AlpacaClient, snap: dict, cfg: dict, latency_ms: int) -> dict:
         "mode": f"L{auth}",
         "authorization_label": _AUTH_LABEL.get(auth, "Semi-Auto"),
         "skill_version": SKILL_VERSION,
-        "build_date": now.strftime("%Y.%m.%d"),
-        "generated_at": now.strftime("%Y-%m-%d %H:%M"),
+        "build_date": now_display.strftime("%Y.%m.%d"),
+        "generated_at": now_display.strftime(f"%Y-%m-%d %H:%M {tz_label}"),
         "market_open": is_open,
         "market_label": label,
         "next_session": str(nxt) if nxt else "",

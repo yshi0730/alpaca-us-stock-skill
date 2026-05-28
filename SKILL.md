@@ -270,6 +270,16 @@ tables in `~/.claw/shared/shared.db` (tables auto-create on first write):
    These prove the AI is thinking even when not trading — write
    liberally.
 
+4b. **Cancel a working order** →
+   ```bash
+   python3 /home/storyclaw/.openclaw/workspace-alpaca-us-stock-trader/skills/alpaca-us-stock/dashboard/cancel.py <client_order_id> --reason "..."
+   ```
+   Cancels via Alpaca, writes a follow-up `trade_reasoning` row
+   (`action='cancel'`), broadcasts ORDER. **Do NOT** call the MCP
+   `alpaca_cancel_order` directly — it'd leave the dashboard's order
+   stuck "pending" with no broadcast. See REFERENCE.md → MCP Tool
+   Usage Guidelines for the full hard-rule on write-tool routing.
+
 5. **P&L / positions change** → `UPDATE strategy_state SET
    pnl_cumulative, pnl_today, positions_count, last_action,
    last_action_at` for the affected strategy. (No helper for this yet

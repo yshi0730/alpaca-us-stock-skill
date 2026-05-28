@@ -78,7 +78,7 @@ One row per AI decision (including HOLDs). Powers the **Execution Feed** + the h
 | `strategy_id` | TEXT | → `strategy_state.id`, nullable |
 | `client_order_id` | TEXT | agent sets this on the Alpaca order; primary join key |
 | `broker_order_id` | TEXT | Alpaca order id; backfilled after ack |
-| `action` | TEXT | `buy`/`sell`/`add`/`reduce`/`close`/`hold` |
+| `action` | TEXT | `buy`/`sell`/`add`/`reduce`/`close`/`hold`/`cancel` |
 | `symbol` | TEXT | |
 | `qty` | REAL | NULL for `hold` |
 | `price` | REAL | fill price; ref price for `hold` |

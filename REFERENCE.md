@@ -149,35 +149,78 @@ Real numbers from the live account — never placeholder data.
 
 ## MCP Tool Usage Guidelines
 
-### Market Data Tools
-- `alpaca_get_quote` — for single stock deep-dive
-- `alpaca_get_snapshot` — for comparing multiple stocks at a glance
-- `alpaca_get_bars` — for chart analysis; use 1Day for swing trading, 1Hour/15Min for day trading. **Paper-account caveat:** without an explicit `start`, IEX silently returns ≤1 bar — always pass a `start` for series.
-- `alpaca_market_overview` — start a session with this for context
-- `alpaca_screen_stocks` — when user wants to find opportunities
+The `alpaca-us-stock` MCP skill registers ~38 tools. Most fall into
+one of six buckets below. **The single hard rule that matters most**:
 
-### Trading Tools
-- Use `dashboard/trade.py` (canonical write path) for orders; it wraps `place_order` + the write contract (see SKILL.md Rule 2). Don't `httpx.post` to `/v2/orders` by hand.
-- For limit orders, suggest prices based on recent support/resistance from bars.
+> ⛔ **All writes go through `dashboard/*.py` helpers — never through
+> MCP write tools.** The dashboard helpers
+> (`strategy.py` / `trade.py` / `cancel.py` / `fill.py` / `hold.py`)
+> pair every Alpaca-side write with the `trade_reasoning` /
+> `strategy_state` row and the matching `ai_broadcast` row that the
+> dashboard panels render from. The MCP write tools — `alpaca_place_
+> order`, `alpaca_cancel_order`, `alpaca_close_position`,
+> `alpaca_create_strategy`, etc. — write to Alpaca / the TS-side
+> storage **but skip the write contract entirely**. If you use them
+> the dashboard goes inconsistent (an order shows "pending" forever,
+> a strategy is missing from Active Strategies, no broadcast).
 
-### Strategy Tools
-- Templates are starting points — always customize to the user's risk profile.
-- Explain each strategy component in plain language.
-- Risk management is NOT optional — every strategy needs stops.
+### Bucket 1 — Reads (use freely)
 
-### Monitor / Cron
-- Cron runs as Gateway scheduler — see "Gateway Pairing" above.
-- Check `alpaca_get_monitor_status` when the user returns to a session.
+These don't conflict with anything; helpful for ad-hoc queries:
 
-### Backtest
-- Minimum 6 months of data for meaningful results.
-- Always compare against a simple buy-and-hold benchmark.
+- `alpaca_get_account` — equity / cash / buying power
+- `alpaca_get_positions` — current positions
+- `alpaca_get_orders` — recent orders + status
+- `alpaca_get_performance` — performance metrics
+- `alpaca_get_trade_journal` — past trades + reasoning history
+- `alpaca_get_strategy` / `alpaca_list_strategies` / `alpaca_list_strategy_templates` — strategy CRUD reads
+
+### Bucket 2 — Market data (use freely)
+
+- `alpaca_get_quote` — single stock deep-dive
+- `alpaca_get_snapshot` — multi-symbol at-a-glance
+- `alpaca_get_bars` — chart analysis. **Paper-account caveat:** without an explicit `start`, IEX silently returns ≤1 bar. Always pass `start`.
+- `alpaca_market_overview` — session-opening context
+- `alpaca_screen_stocks` — opportunity discovery
+
+### Bucket 3 — Writes (⛔ DO NOT call these directly — use helpers)
+
+| Want to | Use this helper instead | NOT this MCP tool |
+|---|---|---|
+| Place an order | `dashboard/trade.py` | ~~`alpaca_place_order`~~ |
+| Cancel a working order | `dashboard/cancel.py` | ~~`alpaca_cancel_order`~~ |
+| HOLD decision | `dashboard/hold.py` | (no MCP equivalent — good) |
+| Backfill a fill | `dashboard/fill.py` | (poll loop, no MCP equiv) |
+| Activate / pause / stop a strategy | `dashboard/strategy.py` | ~~`alpaca_create_strategy`~~, ~~`alpaca_delete_strategy`~~ |
+| Close a position | `dashboard/trade.py <SYM> <QTY> sell --action close` | ~~`alpaca_close_position`~~ |
+
+### Bucket 4 — Cron + monitoring (use cron, NOT local monitor)
+
+We schedule everything through Gateway cron — see "Gateway Pairing and
+Cron Wakeups" above. **Do NOT also start the TS-side local monitor**;
+two monitors = double notifications / wasted polling:
+
+- `alpaca_cron_tick` — the cron entry point. Wakeups dispatch by `mode`.
+- `alpaca_setup_gateway_cron` — sets up the Gateway-side cron job.
+- ⛔ `alpaca_start_monitor` / `alpaca_stop_monitor` — local poll process. **Don't use.** Gateway cron replaces this.
+- ⛔ `alpaca_add_alert` / `alpaca_remove_alert` / `alpaca_get_alerts` — local alert system. **Don't use.** Equivalent flows already exist via `risk_check` cron + WARN broadcasts.
+
+### Bucket 5 — Backtest (use before activating new strategies)
+
+- `alpaca_backtest` — run a strategy against historical data. Minimum 6 months for meaningful results. Always compare against buy-and-hold SPY.
+- `alpaca_get_backtest_results` — fetch results of an earlier backtest run.
 - Warn about overfitting when strategies are too complex.
 
-### Analytics / Review
-- `alpaca_review_session` generates raw data — provide actionable insights, not dumps.
-- Focus on risk-adjusted returns, not just absolute returns.
-- Identify behavioral patterns (revenge trading, overconcentration, etc.).
+### Bucket 6 — Review / Journal
+
+- `alpaca_review_session` — generate raw session data; **interpret it for the user, don't dump it**.
+- `alpaca_add_trade_note` — attach a note to a past trade. Useful for retrospectives ("this was a revenge trade").
+- Focus on risk-adjusted returns + behavioral patterns (revenge trading, overconcentration), not raw P&L.
+
+### What's missing from above
+
+A handful of tools aren't decisions for the agent — they're internal:
+`alpaca_api_key` / `alpaca_api_secret` / `alpaca_mode` / `alpaca_verified` / `alpaca_configure` / `alpaca_setup_guide`. These are config-storage / one-time setup; `setup.sh creds` handles the equivalent.
 
 ---
 
